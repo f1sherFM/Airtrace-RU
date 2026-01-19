@@ -219,10 +219,7 @@ def prepare_export_data(historical_data: List[Dict[str, Any]], city_name: str) -
             "no2": point["pollutants"]["no2"],
             "so2": point["pollutants"]["so2"],
             "o3": point["pollutants"]["o3"],
-            "nmu_risk": point["nmu_risk"],
-            "temperature": point.get("temperature", ""),
-            "humidity": point.get("humidity", ""),
-            "wind_speed": point.get("wind_speed", "")
+            "nmu_risk": point["nmu_risk"]
         }
         export_data.append(export_point)
     
@@ -393,6 +390,71 @@ async def api_health():
         "backend_api": backend_health.get("status", "unknown"),
         "cities_available": len(CITIES)
     }
+
+@app.get("/api/historical/{city_key}")
+async def get_historical_data_api(
+    city_key: str,
+    days: int = Query(1, ge=1, le=7)  # От 1 до 7 дней
+):
+    """API для получения исторических данных для отображения на сайте"""
+    
+    if city_key not in CITIES:
+        raise HTTPException(status_code=404, detail="Город не найден")
+    
+    city = CITIES[city_key]
+    hours = days * 24
+    
+    try:
+        # Получаем исторические данные
+        historical_data = await air_service.get_historical_data(
+            city["lat"], city["lon"], hours
+        )
+        
+        if not historical_data:
+            raise HTTPException(status_code=503, detail="Не удалось получить исторические данные")
+        
+        return {
+            "city": city["name"],
+            "period_days": days,
+            "data_points": len(historical_data),
+            "data": historical_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении данных: {str(e)}")
+
+@app.get("/api/historical-custom")
+async def get_historical_custom_data_api(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    city_name: str = Query("Custom Location"),
+    days: int = Query(1, ge=1, le=7)
+):
+    """API для получения исторических данных для произвольных координат"""
+    
+    hours = days * 24
+    
+    try:
+        # Получаем исторические данные
+        historical_data = await air_service.get_historical_data(lat, lon, hours)
+        
+        if not historical_data:
+            raise HTTPException(status_code=503, detail="Не удалось получить исторические данные")
+        
+        return {
+            "city": city_name,
+            "coordinates": {"lat": lat, "lon": lon},
+            "period_days": days,
+            "data_points": len(historical_data),
+            "data": historical_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении данных: {str(e)}")
 
 @app.get("/export/{city_key}")
 async def export_city_data(
