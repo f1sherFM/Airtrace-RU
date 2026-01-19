@@ -1,0 +1,96 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "airtrace-ru"
+version = "1.0.0"
+description = "Air Quality Monitoring API for Russian cities"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "AirTrace RU Team"},
+]
+keywords = ["air-quality", "api", "russia", "monitoring", "fastapi"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+]
+
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "httpx>=0.25.0",
+    "pydantic>=2.4.0",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "hypothesis>=6.88.0",
+    "httpx>=0.25.0",
+]
+dev = [
+    "black>=23.9.0",
+    "isort>=5.12.0",
+    "flake8>=6.1.0",
+    "mypy>=1.6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/airtrace-ru/backend"
+Repository = "https://github.com/airtrace-ru/backend.git"
+Issues = "https://github.com/airtrace-ru/backend/issues"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers"
+testpaths = [
+    "tests",
+]
+asyncio_mode = "auto"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests", 
+    "property: Property-based tests",
+]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true

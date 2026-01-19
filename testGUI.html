@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AirTrace RU — Мониторинг воздуха</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .aqi-gradient { background: linear-gradient(135deg, #00b4db 0%, #0083b0 100%); }
+    </style>
+</head>
+<body class="aqi-gradient min-h-screen text-white p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    <i data-lucide="wind" class="text-blue-200"></i> AirTrace RU
+                </h1>
+                <p class="text-blue-100 text-sm opacity-80">Магнитогорск, Челябинская обл.</p>
+            </div>
+            <div class="text-right">
+                <span class="bg-green-500/20 text-green-300 text-xs px-3 py-1 rounded-full border border-green-500/30 flex items-center gap-1">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Бэкенд активен
+                </span>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <div class="md:col-span-2 glass rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden">
+                <div class="relative z-10">
+                    <h2 class="text-lg font-medium opacity-80 mb-1">Индекс качества воздуха (AQI)</h2>
+                    <div class="flex items-baseline gap-4">
+                        <span class="text-8xl font-bold">40</span>
+                        <span class="text-2xl font-semibold text-green-300">Хорошее</span>
+                    </div>
+                    <p class="mt-4 max-w-sm text-blue-50 opacity-90">
+                        Качество воздуха считается удовлетворительным, загрязнение представляет незначительный риск.
+                    </p>
+                </div>
+                
+                <div class="mt-8 p-4 bg-white/10 rounded-2xl flex items-start gap-3">
+                    <i data-lucide="info" class="shrink-0"></i>
+                    <p class="text-sm">Идеальные условия для любых активностей на открытом воздухе и проветривания помещений.</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-6">
+                <div class="glass rounded-3xl p-6 border-l-4 border-l-green-400">
+                    <h3 class="text-sm font-semibold opacity-70 uppercase tracking-wider mb-2">Риск НМУ</h3>
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="shield-check" class="text-green-400 w-8 h-8"></i>
+                        <div>
+                            <p class="font-bold">Низкий риск</p>
+                            <p class="text-xs opacity-60">Режим «Черного неба» не ожидается</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass rounded-3xl p-6">
+                    <h3 class="text-sm font-semibold opacity-70 uppercase tracking-wider mb-4">Координаты (Safe)</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between text-sm">
+                            <span class="opacity-60">Широта</span>
+                            <span class="font-mono">53.4069°</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="opacity-60">Долгота</span>
+                            <span class="font-mono">58.9794°</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="md:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div class="glass rounded-2xl p-4 text-center">
+                    <p class="text-xs opacity-60 mb-1">PM2.5</p>
+                    <p class="text-xl font-bold">12.1</p>
+                    <p class="text-[10px] opacity-40">мкг/м³</p>
+                </div>
+                <div class="glass rounded-2xl p-4 text-center">
+                    <p class="text-xs opacity-60 mb-1">PM10</p>
+                    <p class="text-xl font-bold">12.8</p>
+                    <p class="text-[10px] opacity-40">мкг/м³</p>
+                </div>
+                <div class="glass rounded-2xl p-4 text-center">
+                    <p class="text-xs opacity-60 mb-1">NO2</p>
+                    <p class="text-xl font-bold">31.6</p>
+                    <p class="text-[10px] opacity-40">мкг/м³</p>
+                </div>
+                <div class="glass rounded-2xl p-4 text-center">
+                    <p class="text-xs opacity-60 mb-1">SO2</p>
+                    <p class="text-xl font-bold">3.1</p>
+                    <p class="text-[10px] opacity-40">мкг/м³</p>
+                </div>
+                <div class="glass rounded-2xl p-4 text-center">
+                    <p class="text-xs opacity-60 mb-1">O3</p>
+                    <p class="text-xl font-bold">49.0</p>
+                    <p class="text-[10px] opacity-40">мкг/м³</p>
+                </div>
+            </div>
+        </main>
+
+        <footer class="mt-12 text-center opacity-40 text-xs">
+            <p>© 2026 AirTrace RU. Данные: Open-Meteo. Стандарты ПДК РФ.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Инициализация иконок Lucide
+        lucide.createIcons();
+    </script>
+</body>
+</html>

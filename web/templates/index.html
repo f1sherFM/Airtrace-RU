@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- Welcome State -->
+    <div class="lg:col-span-3 glass rounded-3xl p-8 text-center">
+        <div>
+            <i data-lucide="wind" class="w-16 h-16 mx-auto mb-6 text-blue-200"></i>
+            <h2 class="text-2xl font-bold mb-4">Добро пожаловать в AirTrace RU</h2>
+            <p class="text-lg mb-6 opacity-90">
+                Система мониторинга качества воздуха для российских городов
+            </p>
+            <p class="text-sm opacity-70 mb-8">
+                Выберите город из списка выше, чтобы получить актуальные данные о качестве воздуха
+            </p>
+            
+            <!-- Quick City Links -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-8">
+                {% for key, city in cities.items() %}
+                <a href="/city/{{ key }}" class="glass rounded-xl p-4 hover:bg-white/20 transition-colors group">
+                    <div class="text-lg font-semibold group-hover:text-blue-200 transition-colors">
+                        {{ city.name }}
+                    </div>
+                    <div class="text-xs opacity-60 mt-1">
+                        {{ "%.1f"|format(city.lat) }}°, {{ "%.1f"|format(city.lon) }}°
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            
+            <!-- Кнопка произвольного города -->
+            <div class="flex justify-center">
+                <a href="/custom" class="btn-glass rounded-xl px-6 py-3 flex items-center gap-3 hover:bg-white/25 transition-all group">
+                    <i data-lucide="map-pin" class="w-5 h-5 group-hover:text-blue-200 transition-colors"></i>
+                    <span class="font-semibold">Ввести координаты города</span>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features -->
+    <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+        <div class="glass rounded-2xl p-6 text-center">
+            <i data-lucide="shield-check" class="w-12 h-12 mx-auto mb-4 text-green-400"></i>
+            <h3 class="text-lg font-semibold mb-2">Privacy-First</h3>
+            <p class="text-sm opacity-80">Координаты не сохраняются, полная приватность пользователей</p>
+        </div>
+        
+        <div class="glass rounded-2xl p-6 text-center">
+            <i data-lucide="flag" class="w-12 h-12 mx-auto mb-4 text-red-400"></i>
+            <h3 class="text-lg font-semibold mb-2">Российские ПДК</h3>
+            <p class="text-sm opacity-80">Расчет AQI по российским нормативам и стандартам</p>
+        </div>
+        
+        <div class="glass rounded-2xl p-6 text-center">
+            <i data-lucide="cloud-lightning" class="w-12 h-12 mx-auto mb-4 text-purple-400"></i>
+            <h3 class="text-lg font-semibold mb-2">НМУ Мониторинг</h3>
+            <p class="text-sm opacity-80">Определение рисков "Черного неба" и неблагоприятных условий</p>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

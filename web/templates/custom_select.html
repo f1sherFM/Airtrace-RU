@@ -1,0 +1,124 @@
+<!-- Кастомный dropdown для выбора города -->
+<div class="custom-select-container relative">
+    <button type="button" class="custom-select-button btn-glass rounded-xl px-4 py-2 flex items-center justify-between gap-2 min-w-48" onclick="toggleDropdown()">
+        <span id="selected-city">
+            {% if current_city %}{{ current_city.name }}{% else %}Выберите город{% endif %}
+        </span>
+        <i data-lucide="chevron-down" class="w-4 h-4 transition-transform" id="dropdown-arrow"></i>
+    </button>
+    
+    <div class="custom-dropdown glass-enhanced rounded-xl mt-2 absolute top-full left-0 right-0 z-50 hidden" id="city-dropdown">
+        <div class="p-2 max-h-64 overflow-y-auto">
+            <a href="/" class="dropdown-item block px-3 py-2 rounded-lg hover:bg-white/20 transition-colors text-sm {% if not current_city %}bg-blue-500/30{% endif %}">
+                Выберите город
+            </a>
+            {% for key, city in cities.items() %}
+            <a href="/city/{{ key }}" class="dropdown-item block px-3 py-2 rounded-lg hover:bg-white/20 transition-colors text-sm {% if current_city and key == city_key %}bg-blue-500/30{% endif %}">
+                {{ city.name }}
+            </a>
+            {% endfor %}
+            
+            <!-- Разделитель -->
+            <div class="border-t border-white/20 my-2"></div>
+            
+            <!-- Произвольный город -->
+            <a href="/custom" class="dropdown-item block px-3 py-2 rounded-lg hover:bg-white/20 transition-colors text-sm flex items-center gap-2">
+                <i data-lucide="map-pin" class="w-4 h-4"></i>
+                Произвольный город
+            </a>
+        </div>
+    </div>
+</div>
+
+<style>
+.custom-select-container {
+    min-width: 200px;
+}
+
+.custom-select-button {
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white !important;
+}
+
+.custom-select-button:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+}
+
+.custom-dropdown {
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.1) !important;
+    backdrop-filter: blur(16px);
+}
+
+.dropdown-item {
+    color: white !important;
+    text-decoration: none;
+}
+
+.dropdown-item:hover {
+    color: white !important;
+    background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.custom-select-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Анимация стрелки */
+.rotate-180 {
+    transform: rotate(180deg);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .custom-select-container {
+        min-width: 160px;
+    }
+}
+</style>
+
+<script>
+function toggleDropdown() {
+    const dropdown = document.getElementById('city-dropdown');
+    const arrow = document.getElementById('dropdown-arrow');
+    
+    if (dropdown.classList.contains('hidden')) {
+        dropdown.classList.remove('hidden');
+        arrow.classList.add('rotate-180');
+    } else {
+        dropdown.classList.add('hidden');
+        arrow.classList.remove('rotate-180');
+    }
+}
+
+// Закрытие dropdown при клике вне его
+document.addEventListener('click', function(event) {
+    const container = document.querySelector('.custom-select-container');
+    if (container && !container.contains(event.target)) {
+        document.getElementById('city-dropdown').classList.add('hidden');
+        document.getElementById('dropdown-arrow').classList.remove('rotate-180');
+    }
+});
+
+// Закрытие dropdown при нажатии Escape
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        document.getElementById('city-dropdown').classList.add('hidden');
+        document.getElementById('dropdown-arrow').classList.remove('rotate-180');
+    }
+});
+
+// Инициализация иконок после загрузки
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+</script>

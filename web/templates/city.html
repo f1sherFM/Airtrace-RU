@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block body_class %}{{ aqi_class }}{% endblock %}
+
+{% block location_display %}{{ current_city.name }}{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    
+    <!-- AQI Main Card -->
+    <div class="lg:col-span-2 glass-enhanced rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden card-hover">
+        <div class="relative z-10">
+            <h2 class="text-lg font-medium opacity-80 mb-1 text-shadow">Индекс качества воздуха (AQI)</h2>
+            <div class="flex items-baseline gap-4">
+                <span class="text-8xl font-bold text-shadow">{{ data.aqi.value }}</span>
+                <span class="text-2xl font-semibold text-shadow" style="color: {{ data.aqi.color }}">{{ data.aqi.category }}</span>
+            </div>
+            <p class="mt-4 max-w-sm text-blue-50 opacity-90 text-shadow">
+                {{ data.aqi.description }}
+            </p>
+        </div>
+        
+        <div class="mt-8 p-4 glass-dark rounded-2xl flex items-start gap-3 transition-smooth">
+            <i data-lucide="info" class="shrink-0"></i>
+            <p class="text-sm">{{ data.recommendations }}</p>
+        </div>
+    </div>
+
+    <!-- Side Info -->
+    <div class="flex flex-col gap-6">
+        <!-- NMU Risk -->
+        <div class="glass-enhanced rounded-3xl p-6 border-l-4 {{ nmu_config.border }} card-hover">
+            <h3 class="text-sm font-semibold opacity-70 uppercase tracking-wider mb-2">Риск НМУ</h3>
+            <div class="flex items-center gap-3">
+                <i data-lucide="{{ nmu_config.icon }}" class="{{ nmu_config.color }} w-8 h-8"></i>
+                <div>
+                    <p class="font-bold">{{ nmu_config.level }}</p>
+                    <p class="text-xs opacity-60">{{ nmu_config.description }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Coordinates -->
+        <div class="glass-enhanced rounded-3xl p-6 card-hover">
+            <h3 class="text-sm font-semibold opacity-70 uppercase tracking-wider mb-4">Координаты (Privacy Safe)</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between text-sm">
+                    <span class="opacity-60">Широта</span>
+                    <span class="font-mono">{{ "%.4f"|format(data.location.latitude) }}°</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="opacity-60">Долгота</span>
+                    <span class="font-mono">{{ "%.4f"|format(data.location.longitude) }}°</span>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="opacity-60">Обновлено</span>
+                    <span class="text-xs">{{ format_time(data.timestamp) }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Health Warnings -->
+        {% if data.health_warnings %}
+        <div class="glass-enhanced rounded-3xl p-6 card-hover">
+            <h3 class="text-sm font-semibold opacity-70 uppercase tracking-wider mb-4">Предупреждения</h3>
+            <div class="space-y-2">
+                {% for warning in data.health_warnings %}
+                <div class="flex items-start gap-2 p-2 bg-red-500/20 rounded-lg border border-red-500/30 transition-smooth">
+                    <i data-lucide="alert-triangle" class="text-red-400 w-4 h-4 mt-0.5 shrink-0"></i>
+                    <span class="text-sm">{{ warning }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Pollutants Grid -->
+    <div class="lg:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="glass-enhanced rounded-2xl p-4 text-center card-hover">
+            <p class="text-xs opacity-60 mb-1">PM2.5</p>
+            <p class="text-xl font-bold">{{ "%.1f"|format(data.pollutants.pm2_5) if data.pollutants.pm2_5 else "--" }}</p>
+            <p class="text-[10px] opacity-40">мкг/м³</p>
+        </div>
+        <div class="glass-enhanced rounded-2xl p-4 text-center card-hover">
+            <p class="text-xs opacity-60 mb-1">PM10</p>
+            <p class="text-xl font-bold">{{ "%.1f"|format(data.pollutants.pm10) if data.pollutants.pm10 else "--" }}</p>
+            <p class="text-[10px] opacity-40">мкг/м³</p>
+        </div>
+        <div class="glass-enhanced rounded-2xl p-4 text-center card-hover">
+            <p class="text-xs opacity-60 mb-1">NO2</p>
+            <p class="text-xl font-bold">{{ "%.1f"|format(data.pollutants.no2) if data.pollutants.no2 else "--" }}</p>
+            <p class="text-[10px] opacity-40">мкг/м³</p>
+        </div>
+        <div class="glass-enhanced rounded-2xl p-4 text-center card-hover">
+            <p class="text-xs opacity-60 mb-1">SO2</p>
+            <p class="text-xl font-bold">{{ "%.1f"|format(data.pollutants.so2) if data.pollutants.so2 else "--" }}</p>
+            <p class="text-[10px] opacity-40">мкг/м³</p>
+        </div>
+        <div class="glass-enhanced rounded-2xl p-4 text-center card-hover">
+            <p class="text-xs opacity-60 mb-1">O3</p>
+            <p class="text-xl font-bold">{{ "%.1f"|format(data.pollutants.o3) if data.pollutants.o3 else "--" }}</p>
+            <p class="text-[10px] opacity-40">мкг/м³</p>
+        </div>
+    </div>
+
+    <!-- Forecast Section -->
+    {% if forecast %}
+    <div class="lg:col-span-3">
+        <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
+            <i data-lucide="calendar" class="w-5 h-5"></i>
+            Прогноз на 24 часа
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {% for hour in forecast %}
+            {% set hour_time = hour.timestamp | replace('T', ' ') | replace('Z', '') %}
+            <div class="glass-enhanced rounded-2xl p-4 text-center card-hover">
+                <p class="text-xs opacity-60 mb-2">{{ format_time(hour.timestamp) }}</p>
+                <div class="text-2xl font-bold mb-1 text-shadow" style="color: {{ hour.aqi.color }}">{{ hour.aqi.value }}</div>
+                <p class="text-xs opacity-80">{{ hour.aqi.category }}</p>
+                <div class="mt-2 text-xs opacity-60">
+                    <div>PM2.5: {{ "%.1f"|format(hour.pollutants.pm2_5) if hour.pollutants.pm2_5 else "--" }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+{% block extra_scripts %}
+<script>
+    // Автообновление каждые 5 минут
+    setTimeout(function() {
+        window.location.reload();
+    }, 5 * 60 * 1000);
+</script>
+{% endblock %}
+
+{% endblock %}

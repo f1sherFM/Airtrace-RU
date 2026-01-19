@@ -1,0 +1,641 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    
+    <!-- Форма ввода -->
+    <div class="glass-enhanced rounded-3xl p-8">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+            <i data-lucide="map-pin" class="w-6 h-6 text-blue-400"></i>
+            Произвольный город
+        </h2>
+        
+        <form method="post" action="/custom" class="space-y-6">
+            <!-- Название города (опционально) -->
+            <div>
+                <label for="city_name" class="block text-sm font-medium mb-2 opacity-80">
+                    Название города (опционально)
+                </label>
+                <input 
+                    type="text" 
+                    id="city_name" 
+                    name="city_name" 
+                    placeholder="Например: Владивосток"
+                    class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                >
+            </div>
+            
+            <!-- Координаты -->
+            <div class="space-y-4">
+                <!-- Переключатель формата -->
+                <div class="flex items-center gap-4 mb-4">
+                    <label class="text-sm font-medium opacity-80">Формат координат:</label>
+                    <div class="flex gap-2">
+                        <button 
+                            type="button" 
+                            id="decimal-btn" 
+                            onclick="switchFormat('decimal')"
+                            class="px-3 py-1 rounded-lg text-xs bg-blue-500/30 border border-blue-500/50 transition-colors"
+                        >
+                            Десятичные
+                        </button>
+                        <button 
+                            type="button" 
+                            id="dms-btn" 
+                            onclick="switchFormat('dms')"
+                            class="px-3 py-1 rounded-lg text-xs bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
+                        >
+                            Градусы-минуты-секунды
+                        </button>
+                        <button 
+                            type="button" 
+                            id="text-btn" 
+                            onclick="switchFormat('text')"
+                            class="px-3 py-1 rounded-lg text-xs bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
+                        >
+                            Текстовый ввод
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Десятичные координаты -->
+                <div id="decimal-inputs" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="lat" class="block text-sm font-medium mb-2 opacity-80">
+                            Широта <span class="text-red-400">*</span>
+                        </label>
+                        <input 
+                            type="number" 
+                            id="lat" 
+                            name="lat" 
+                            step="0.0001"
+                            min="-90"
+                            max="90"
+                            placeholder="61.25"
+                            required
+                            class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        >
+                        <p class="text-xs opacity-60 mt-1">От -90 до 90</p>
+                    </div>
+                    
+                    <div>
+                        <label for="lon" class="block text-sm font-medium mb-2 opacity-80">
+                            Долгота <span class="text-red-400">*</span>
+                        </label>
+                        <input 
+                            type="number" 
+                            id="lon" 
+                            name="lon" 
+                            step="0.0001"
+                            min="-180"
+                            max="180"
+                            placeholder="73.4333"
+                            required
+                            class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+                        >
+                        <p class="text-xs opacity-60 mt-1">От -180 до 180</p>
+                    </div>
+                </div>
+                
+                <!-- Градусы-минуты-секунды -->
+                <div id="dms-inputs" class="hidden space-y-4">
+                    <!-- Широта DMS -->
+                    <div>
+                        <label class="block text-sm font-medium mb-2 opacity-80">
+                            Широта <span class="text-red-400">*</span>
+                        </label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <input 
+                                type="number" 
+                                id="lat-deg" 
+                                placeholder="61"
+                                min="0" max="90"
+                                class="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                            <input 
+                                type="number" 
+                                id="lat-min" 
+                                placeholder="15"
+                                min="0" max="59"
+                                class="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                            <input 
+                                type="number" 
+                                id="lat-sec" 
+                                placeholder="0"
+                                min="0" max="59.999"
+                                step="0.001"
+                                class="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                            <select 
+                                id="lat-dir"
+                                class="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                                <option value="N">С</option>
+                                <option value="S">Ю</option>
+                            </select>
+                        </div>
+                        <p class="text-xs opacity-60 mt-1">Градусы | Минуты | Секунды | Направление</p>
+                    </div>
+                    
+                    <!-- Долгота DMS -->
+                    <div>
+                        <label class="block text-sm font-medium mb-2 opacity-80">
+                            Долгота <span class="text-red-400">*</span>
+                        </label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <input 
+                                type="number" 
+                                id="lon-deg" 
+                                placeholder="73"
+                                min="0" max="180"
+                                class="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                            <input 
+                                type="number" 
+                                id="lon-min" 
+                                placeholder="26"
+                                min="0" max="59"
+                                class="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                            <input 
+                                type="number" 
+                                id="lon-sec" 
+                                placeholder="0"
+                                min="0" max="59.999"
+                                step="0.001"
+                                class="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                            <select 
+                                id="lon-dir"
+                                class="px-3 py-2 rounded-lg bg-white/10 border border-white/20 text-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                                <option value="E">В</option>
+                                <option value="W">З</option>
+                            </select>
+                        </div>
+                        <p class="text-xs opacity-60 mt-1">Градусы | Минуты | Секунды | Направление</p>
+                    </div>
+                    
+                    <!-- Кнопка конвертации -->
+                    <button 
+                        type="button" 
+                        onclick="convertDMSToDecimal()"
+                        class="w-full bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <i data-lucide="calculator" class="w-4 h-4"></i>
+                        Конвертировать в десятичные
+                    </button>
+                </div>
+                
+                <!-- Текстовый ввод координат -->
+                <div id="text-inputs" class="hidden space-y-4">
+                    <div>
+                        <label for="coord-text" class="block text-sm font-medium mb-2 opacity-80">
+                            Координаты в любом формате <span class="text-red-400">*</span>
+                        </label>
+                        <textarea 
+                            id="coord-text" 
+                            placeholder="Примеры:&#10;61°15′00″ с. ш., 73°26′00″ в. д.&#10;61°15'00&quot; N, 73°26'00&quot; E&#10;61 15 00 N 73 26 00 E&#10;61.25, 73.4333"
+                            rows="4"
+                            class="w-full px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none"
+                        ></textarea>
+                        <p class="text-xs opacity-60 mt-1">Поддерживаются различные форматы записи координат</p>
+                    </div>
+                    
+                    <!-- Кнопка парсинга -->
+                    <button 
+                        type="button" 
+                        onclick="parseTextCoordinates()"
+                        class="w-full bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded-xl px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                        <i data-lucide="type" class="w-4 h-4"></i>
+                        Распознать координаты
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Кнопка отправки -->
+            <button 
+                type="submit" 
+                class="w-full btn-glass rounded-xl px-6 py-3 font-semibold flex items-center justify-center gap-2 hover:bg-white/25 transition-all"
+            >
+                <i data-lucide="search" class="w-5 h-5"></i>
+                Получить данные о качестве воздуха
+            </button>
+        </form>
+    </div>
+    
+    <!-- Информация и примеры -->
+    <div class="space-y-6">
+        <!-- Инструкция -->
+        <div class="glass-enhanced rounded-3xl p-6">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                <i data-lucide="info" class="w-5 h-5 text-blue-400"></i>
+                Как использовать
+            </h3>
+            <div class="space-y-3 text-sm opacity-90">
+                <p>1. <strong>Выберите формат координат</strong>:</p>
+                <ul class="ml-4 space-y-1 text-xs opacity-80">
+                    <li>• <strong>Десятичные</strong> — обычные числа (61.25, 73.4333)</li>
+                    <li>• <strong>Градусы-минуты-секунды</strong> — раздельные поля</li>
+                    <li>• <strong>Текстовый ввод</strong> — скопируйте координаты как есть</li>
+                </ul>
+                <p>2. <strong>Введите координаты</strong> интересующего вас места</p>
+                <p>3. <strong>Опционально</strong> укажите название города</p>
+                <p>4. <strong>Нажмите кнопку</strong> для получения данных</p>
+                <p class="text-xs opacity-70 mt-4">
+                    💡 Координаты можно скопировать из Google Maps, Яндекс.Карт или Википедии
+                </p>
+                <p class="text-xs opacity-70">
+                    🔄 Текстовый ввод поддерживает большинство форматов записи координат
+                </p>
+            </div>
+        </div>
+        
+        <!-- Примеры городов -->
+        <div class="glass-enhanced rounded-3xl p-6">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                <i data-lucide="map" class="w-5 h-5 text-green-400"></i>
+                Примеры координат
+            </h3>
+            <div class="space-y-3">
+                <div class="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                    <div>
+                        <div class="font-medium">Владивосток</div>
+                        <div class="text-xs opacity-60">43.1056, 131.8735</div>
+                    </div>
+                    <button 
+                        onclick="fillCoordinates(43.1056, 131.8735, 'Владивосток')"
+                        class="text-xs bg-blue-500/20 hover:bg-blue-500/30 px-2 py-1 rounded transition-colors"
+                    >
+                        Использовать
+                    </button>
+                </div>
+                
+                <div class="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                    <div>
+                        <div class="font-medium">Сочи</div>
+                        <div class="text-xs opacity-60">43.6028, 39.7342</div>
+                    </div>
+                    <button 
+                        onclick="fillCoordinates(43.6028, 39.7342, 'Сочи')"
+                        class="text-xs bg-blue-500/20 hover:bg-blue-500/30 px-2 py-1 rounded transition-colors"
+                    >
+                        Использовать
+                    </button>
+                </div>
+                
+                <div class="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                    <div>
+                        <div class="font-medium">Калининград</div>
+                        <div class="text-xs opacity-60">54.7104, 20.4522</div>
+                    </div>
+                    <button 
+                        onclick="fillCoordinates(54.7104, 20.4522, 'Калининград')"
+                        class="text-xs bg-blue-500/20 hover:bg-blue-500/30 px-2 py-1 rounded transition-colors"
+                    >
+                        Использовать
+                    </button>
+                </div>
+                
+                <div class="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                    <div>
+                        <div class="font-medium">Якутск</div>
+                        <div class="text-xs opacity-60">62.0355, 129.6755</div>
+                    </div>
+                    <button 
+                        onclick="fillCoordinates(62.0355, 129.6755, 'Якутск')"
+                        class="text-xs bg-blue-500/20 hover:bg-blue-500/30 px-2 py-1 rounded transition-colors"
+                    >
+                        Использовать
+                    </button>
+                </div>
+                
+                <div class="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+                    <div>
+                        <div class="font-medium">Сургут</div>
+                        <div class="text-xs opacity-60">61°15′00″ с.ш., 73°26′00″ в.д.</div>
+                    </div>
+                    <button 
+                        onclick="fillTextExample()"
+                        class="text-xs bg-purple-500/20 hover:bg-purple-500/30 px-2 py-1 rounded transition-colors"
+                    >
+                        Текст пример
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Предупреждение -->
+        <div class="glass-enhanced rounded-3xl p-6 border-l-4 border-l-yellow-400">
+            <h3 class="text-lg font-semibold mb-2 flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-yellow-400"></i>
+                Важно знать
+            </h3>
+            <div class="text-sm opacity-90 space-y-2">
+                <p>• Данные предоставляются сервисом Open-Meteo</p>
+                <p>• Координаты не сохраняются (privacy-first)</p>
+                <p>• Расчет AQI по российским стандартам ПДК</p>
+                <p>• Для некоторых регионов данные могут быть недоступны</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function fillCoordinates(lat, lon, cityName) {
+    document.getElementById('lat').value = lat;
+    document.getElementById('lon').value = lon;
+    document.getElementById('city_name').value = cityName;
+}
+
+function switchFormat(format) {
+    const decimalInputs = document.getElementById('decimal-inputs');
+    const dmsInputs = document.getElementById('dms-inputs');
+    const textInputs = document.getElementById('text-inputs');
+    const decimalBtn = document.getElementById('decimal-btn');
+    const dmsBtn = document.getElementById('dms-btn');
+    const textBtn = document.getElementById('text-btn');
+    
+    // Скрываем все блоки
+    decimalInputs.classList.add('hidden');
+    dmsInputs.classList.add('hidden');
+    textInputs.classList.add('hidden');
+    
+    // Сбрасываем стили кнопок
+    [decimalBtn, dmsBtn, textBtn].forEach(btn => {
+        btn.classList.remove('bg-blue-500/30', 'border-blue-500/50');
+        btn.classList.add('bg-white/10', 'border-white/20', 'hover:bg-white/20');
+    });
+    
+    if (format === 'decimal') {
+        decimalInputs.classList.remove('hidden');
+        decimalBtn.classList.add('bg-blue-500/30', 'border-blue-500/50');
+        decimalBtn.classList.remove('bg-white/10', 'border-white/20', 'hover:bg-white/20');
+        
+        // Делаем десятичные поля обязательными
+        document.getElementById('lat').required = true;
+        document.getElementById('lon').required = true;
+    } else if (format === 'dms') {
+        dmsInputs.classList.remove('hidden');
+        dmsBtn.classList.add('bg-blue-500/30', 'border-blue-500/50');
+        dmsBtn.classList.remove('bg-white/10', 'border-white/20', 'hover:bg-white/20');
+        
+        // Убираем обязательность с десятичных полей
+        document.getElementById('lat').required = false;
+        document.getElementById('lon').required = false;
+    } else if (format === 'text') {
+        textInputs.classList.remove('hidden');
+        textBtn.classList.add('bg-blue-500/30', 'border-blue-500/50');
+        textBtn.classList.remove('bg-white/10', 'border-white/20', 'hover:bg-white/20');
+        
+        // Убираем обязательность с десятичных полей
+        document.getElementById('lat').required = false;
+        document.getElementById('lon').required = false;
+    }
+}
+
+function convertDMSToDecimal() {
+    try {
+        // Получаем значения широты
+        const latDeg = parseFloat(document.getElementById('lat-deg').value) || 0;
+        const latMin = parseFloat(document.getElementById('lat-min').value) || 0;
+        const latSec = parseFloat(document.getElementById('lat-sec').value) || 0;
+        const latDir = document.getElementById('lat-dir').value;
+        
+        // Получаем значения долготы
+        const lonDeg = parseFloat(document.getElementById('lon-deg').value) || 0;
+        const lonMin = parseFloat(document.getElementById('lon-min').value) || 0;
+        const lonSec = parseFloat(document.getElementById('lon-sec').value) || 0;
+        const lonDir = document.getElementById('lon-dir').value;
+        
+        // Валидация
+        if (latDeg < 0 || latDeg > 90) {
+            alert('Градусы широты должны быть от 0 до 90');
+            return;
+        }
+        if (lonDeg < 0 || lonDeg > 180) {
+            alert('Градусы долготы должны быть от 0 до 180');
+            return;
+        }
+        if (latMin < 0 || latMin >= 60) {
+            alert('Минуты должны быть от 0 до 59');
+            return;
+        }
+        if (lonMin < 0 || lonMin >= 60) {
+            alert('Минуты должны быть от 0 до 59');
+            return;
+        }
+        if (latSec < 0 || latSec >= 60) {
+            alert('Секунды должны быть от 0 до 59.999');
+            return;
+        }
+        if (lonSec < 0 || lonSec >= 60) {
+            alert('Секунды должны быть от 0 до 59.999');
+            return;
+        }
+        
+        // Конвертируем в десятичные градусы
+        let lat = latDeg + (latMin / 60) + (latSec / 3600);
+        let lon = lonDeg + (lonMin / 60) + (lonSec / 3600);
+        
+        // Применяем направление
+        if (latDir === 'S') lat = -lat;
+        if (lonDir === 'W') lon = -lon;
+        
+        // Округляем до 4 знаков после запятой
+        lat = Math.round(lat * 10000) / 10000;
+        lon = Math.round(lon * 10000) / 10000;
+        
+        // Заполняем десятичные поля
+        document.getElementById('lat').value = lat;
+        document.getElementById('lon').value = lon;
+        
+        // Переключаемся на десятичный формат
+        switchFormat('decimal');
+        
+        // Показываем уведомление
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-green-500/20 border border-green-500/50 rounded-xl px-4 py-2 text-sm z-50';
+        notification.innerHTML = `
+            <div class="flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-green-400"></i>
+                Координаты конвертированы: ${lat}, ${lon}
+            </div>
+        `;
+        document.body.appendChild(notification);
+        
+        // Инициализируем иконку
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+        
+        // Убираем уведомление через 3 секунды
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+        
+    } catch (error) {
+        alert('Ошибка при конвертации координат: ' + error.message);
+    }
+}
+
+// Функция для заполнения DMS полей примером
+function fillDMSExample() {
+    // Пример: Сургут (61°15′00″ с. ш., 73°26′00″ в. д.)
+    document.getElementById('lat-deg').value = 61;
+    document.getElementById('lat-min').value = 15;
+    document.getElementById('lat-sec').value = 0;
+    document.getElementById('lat-dir').value = 'N';
+    
+    document.getElementById('lon-deg').value = 73;
+    document.getElementById('lon-min').value = 26;
+    document.getElementById('lon-sec').value = 0;
+    document.getElementById('lon-dir').value = 'E';
+    
+    document.getElementById('city_name').value = 'Сургут';
+}
+
+// Функция для парсинга текстовых координат
+function parseTextCoordinates() {
+    const text = document.getElementById('coord-text').value.trim();
+    
+    if (!text) {
+        alert('Введите координаты для распознавания');
+        return;
+    }
+    
+    try {
+        let lat = null, lon = null;
+        
+        // Паттерны для различных форматов координат
+        const patterns = [
+            // 61°15′00″ с. ш., 73°26′00″ в. д.
+            /(\d+)°(\d+)′(\d+)″?\s*([сюns])[.\s]*ш[.\s]*,?\s*(\d+)°(\d+)′(\d+)″?\s*([взew])[.\s]*д[.\s]*/i,
+            
+            // 61°15'00" N, 73°26'00" E
+            /(\d+)°(\d+)'(\d+)"?\s*([ns]),?\s*(\d+)°(\d+)'(\d+)"?\s*([ew])/i,
+            
+            // 61 15 00 N 73 26 00 E
+            /(\d+)\s+(\d+)\s+(\d+)\s*([ns])\s+(\d+)\s+(\d+)\s+(\d+)\s*([ew])/i,
+            
+            // Десятичные: 61.25, 73.4333
+            /(-?\d+\.?\d*),?\s*(-?\d+\.?\d*)/,
+            
+            // 61°15′ с.ш. 73°26′ в.д. (без секунд)
+            /(\d+)°(\d+)′?\s*([сюns])[.\s]*ш[.\s]*,?\s*(\d+)°(\d+)′?\s*([взew])[.\s]*д[.\s]*/i,
+            
+            // 61° 15' N, 73° 26' E (без секунд)
+            /(\d+)°\s*(\d+)'?\s*([ns]),?\s*(\d+)°\s*(\d+)'?\s*([ew])/i
+        ];
+        
+        for (let i = 0; i < patterns.length; i++) {
+            const match = text.match(patterns[i]);
+            
+            if (match) {
+                if (i === 3) { // Десятичные координаты
+                    lat = parseFloat(match[1]);
+                    lon = parseFloat(match[2]);
+                } else if (i === 4 || i === 5) { // Без секунд
+                    const latDeg = parseInt(match[1]);
+                    const latMin = parseInt(match[2]);
+                    const latDir = match[3].toLowerCase();
+                    const lonDeg = parseInt(match[4]);
+                    const lonMin = parseInt(match[5]);
+                    const lonDir = match[6].toLowerCase();
+                    
+                    lat = latDeg + (latMin / 60);
+                    lon = lonDeg + (lonMin / 60);
+                    
+                    if (latDir === 's' || latDir === 'ю') lat = -lat;
+                    if (lonDir === 'w' || lonDir === 'з') lon = -lon;
+                } else { // С секундами
+                    const latDeg = parseInt(match[1]);
+                    const latMin = parseInt(match[2]);
+                    const latSec = parseInt(match[3]);
+                    const latDir = match[4].toLowerCase();
+                    const lonDeg = parseInt(match[5]);
+                    const lonMin = parseInt(match[6]);
+                    const lonSec = parseInt(match[7]);
+                    const lonDir = match[8].toLowerCase();
+                    
+                    lat = latDeg + (latMin / 60) + (latSec / 3600);
+                    lon = lonDeg + (lonMin / 60) + (lonSec / 3600);
+                    
+                    if (latDir === 's' || latDir === 'ю') lat = -lat;
+                    if (lonDir === 'w' || lonDir === 'з') lon = -lon;
+                }
+                break;
+            }
+        }
+        
+        if (lat === null || lon === null) {
+            alert('Не удалось распознать координаты. Попробуйте другой формат.');
+            return;
+        }
+        
+        // Валидация
+        if (lat < -90 || lat > 90) {
+            alert('Широта должна быть от -90 до 90');
+            return;
+        }
+        if (lon < -180 || lon > 180) {
+            alert('Долгота должна быть от -180 до 180');
+            return;
+        }
+        
+        // Округляем до 4 знаков после запятой
+        lat = Math.round(lat * 10000) / 10000;
+        lon = Math.round(lon * 10000) / 10000;
+        
+        // Заполняем десятичные поля
+        document.getElementById('lat').value = lat;
+        document.getElementById('lon').value = lon;
+        
+        // Переключаемся на десятичный формат
+        switchFormat('decimal');
+        
+        // Показываем уведомление
+        const notification = document.createElement('div');
+        notification.className = 'fixed top-4 right-4 bg-purple-500/20 border border-purple-500/50 rounded-xl px-4 py-2 text-sm z-50';
+        notification.innerHTML = `
+            <div class="flex items-center gap-2">
+                <i data-lucide="check-circle" class="w-4 h-4 text-purple-400"></i>
+                Координаты распознаны: ${lat}, ${lon}
+            </div>
+        `;
+        document.body.appendChild(notification);
+        
+        // Инициализируем иконку
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+        
+        // Убираем уведомление через 3 секунды
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+        
+    } catch (error) {
+        alert('Ошибка при распознавании координат: ' + error.message);
+    }
+}
+
+// Функция для заполнения текстового примера
+function fillTextExample() {
+    document.getElementById('coord-text').value = '61°15′00″ с. ш., 73°26′00″ в. д.';
+    document.getElementById('city_name').value = 'Сургут';
+    switchFormat('text');
+}
+
+// Инициализация иконок
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+</script>
+{% endblock %}

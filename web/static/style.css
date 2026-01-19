@@ -1,0 +1,203 @@
+/* AirTrace RU - Улучшенные стили */
+
+/* Улучшенная цветовая палитра */
+:root {
+    --aqi-good: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    --aqi-moderate: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    --aqi-unhealthy-sensitive: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+    --aqi-unhealthy: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    --aqi-very-unhealthy: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    --aqi-hazardous: linear-gradient(135deg, #991b1b 0%, #7f1d1d 100%);
+}
+
+/* Анимации */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.6s ease-out;
+}
+
+.slide-in {
+    animation: slideIn 0.5s ease-out;
+}
+
+/* Улучшенные glass эффекты */
+.glass-enhanced {
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.glass-dark {
+    background: rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Улучшенные переходы */
+.transition-all {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-smooth {
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Улучшенные тени */
+.shadow-soft {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+}
+
+.shadow-glow {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+/* Улучшенные стили для select */
+.city-input {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(8px);
+    color: white;
+}
+
+.city-input option {
+    background: #1f2937;
+    color: white;
+    padding: 8px 12px;
+}
+
+.city-input option:hover {
+    background: #374151;
+}
+
+.city-input option:checked {
+    background: #3b82f6;
+    color: white;
+}
+
+/* Альтернативный стиль для лучшей совместимости */
+.city-select {
+    background: rgba(255, 255, 255, 0.15) !important;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white !important;
+    border-radius: 12px;
+    padding: 8px 12px;
+    outline: none;
+    transition: all 0.3s ease;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    background-size: 16px;
+    padding-right: 32px;
+}
+
+.city-select:focus {
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.city-select option {
+    background: #1f2937 !important;
+    color: white !important;
+    padding: 8px !important;
+}
+
+.city-select option:hover {
+    background: #374151 !important;
+}
+
+.city-select option:checked,
+.city-select option:selected {
+    background: #3b82f6 !important;
+    color: white !important;
+}
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Улучшенные кнопки */
+.btn-glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+}
+
+.btn-glass:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Улучшенные карточки */
+.card-hover {
+    transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Адаптивные улучшения */
+@media (max-width: 768px) {
+    .glass, .glass-enhanced {
+        backdrop-filter: blur(8px);
+    }
+    
+    .card-hover:hover {
+        transform: translateY(-2px);
+    }
+}
+
+/* Темная тема для высокого AQI */
+.dark-theme {
+    --glass-bg: rgba(0, 0, 0, 0.3);
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+}
+
+/* Печать */
+@media print {
+    .glass, .glass-enhanced, .glass-dark {
+        background: white !important;
+        color: black !important;
+        border: 1px solid #ccc !important;
+        backdrop-filter: none !important;
+    }
+    
+    body {
+        background: white !important;
+        color: black !important;
+    }
+    
+    .btn-glass {
+        display: none !important;
+    }
+}
