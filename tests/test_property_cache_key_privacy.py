@@ -11,7 +11,7 @@ import hashlib
 from hypothesis import given, strategies as st, settings
 from typing import Set
 
-from services import CacheManager
+from cache import MultiLevelCacheManager as CacheManager
 
 
 class TestCacheKeyPrivacyProperty:

@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 
 from main import app
 from schemas import AirQualityData, HealthCheckResponse, ErrorResponse
-from services import AirQualityService, CacheManager
+from services import AirQualityService
+from cache import MultiLevelCacheManager
 from utils import AQICalculator
 
 
@@ -29,7 +30,7 @@ class TestBasicSetup:
         assert HealthCheckResponse is not None
         assert ErrorResponse is not None
         assert AirQualityService is not None
-        assert CacheManager is not None
+        assert MultiLevelCacheManager is not None
         assert AQICalculator is not None
     
     def test_client_creation(self, client: TestClient):
@@ -119,11 +120,12 @@ class TestUtils:
 class TestServices:
     """Тесты сервисов"""
     
-    def test_cache_manager_creation(self, cache_manager: CacheManager):
+    async def test_cache_manager_creation(self, cache_manager: MultiLevelCacheManager):
         """Тест создания менеджера кэша"""
         assert cache_manager is not None
-        assert hasattr(cache_manager, '_cache')
-        assert hasattr(cache_manager, 'ttl_seconds')
+        assert hasattr(cache_manager, '_l1_cache')
+        assert hasattr(cache_manager, '_l1_enabled')
+        assert hasattr(cache_manager, '_l2_enabled')
     
     @pytest.mark.asyncio
     async def test_air_quality_service_creation(self, air_quality_service: AirQualityService):

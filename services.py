@@ -19,114 +19,43 @@ from schemas import (
     AQIInfo, 
     LocationInfo,
     OpenMeteoResponse,
-    CacheEntry
+    CacheEntry,
+    WeatherInfo,
+    TemperatureData,
+    WindData,
+    PressureData
 )
 from utils import AQICalculator, check_nmu_risk, is_blacksky_conditions, get_nmu_recommendations
+from cache import MultiLevelCacheManager
+from connection_pool import get_connection_pool_manager, ServiceType, APIRequest
+from weather_api_manager import weather_api_manager
+from config import config
 
 logger = logging.getLogger(__name__)
 
-
-class CacheManager:
-    """
-    Менеджер кэширования данных с акцентом на приватность.
-    
-    Использует хэшированные ключи для предотвращения сохранения
-    реальных координат пользователей.
-    """
-    
-    def __init__(self, ttl_minutes: int = 15):
-        self._cache: Dict[str, CacheEntry] = {}
-        self.ttl_seconds = ttl_minutes * 60
-        self.aqi_calculator = AQICalculator()
-    
-    def _generate_key(self, lat: float, lon: float) -> str:
-        """
-        Генерация приватного ключа кэша без сохранения координат.
-        
-        Округляет координаты для группировки близких запросов
-        и использует хэширование для обеспечения приватности.
-        """
-        # Округление до 2 знаков для группировки близких локаций
-        rounded_lat = round(lat, 2)
-        rounded_lon = round(lon, 2)
-        key_string = f"{rounded_lat}:{rounded_lon}"
-        return hashlib.md5(key_string.encode()).hexdigest()
-    
-    async def get(self, lat: float, lon: float) -> Optional[Dict[str, Any]]:
-        """Получение данных из кэша с обработкой сбоев"""
-        try:
-            key = self._generate_key(lat, lon)
-            
-            if key in self._cache:
-                entry = self._cache[key]
-                if not entry.is_expired():
-                    logger.info("Cache hit for location")
-                    return entry.data
-                else:
-                    # Удаление устаревшей записи
-                    del self._cache[key]
-                    logger.info("Cache entry expired and removed")
-            
-            logger.info("Cache miss for location")
-            return None
-        except Exception as e:
-            logger.warning(f"Cache get operation failed: {e}")
-            return None
-    
-    async def set(self, lat: float, lon: float, data: Dict[str, Any]) -> None:
-        """Сохранение данных в кэш с обработкой сбоев"""
-        try:
-            key = self._generate_key(lat, lon)
-            entry = CacheEntry(
-                data=data,
-                timestamp=datetime.now(timezone.utc),
-                ttl_seconds=self.ttl_seconds
-            )
-            self._cache[key] = entry
-            logger.info("Data cached for location")
-        except Exception as e:
-            logger.warning(f"Cache set operation failed: {e}")
-            # Не выбрасываем исключение, просто логируем
-    
-    async def clear_expired(self) -> None:
-        """Очистка устаревших записей кэша с обработкой сбоев"""
-        try:
-            expired_keys = [
-                key for key, entry in self._cache.items() 
-                if entry.is_expired()
-            ]
-            for key in expired_keys:
-                del self._cache[key]
-            
-            if expired_keys:
-                logger.info(f"Cleared {len(expired_keys)} expired cache entries")
-        except Exception as e:
-            logger.warning(f"Cache clear_expired operation failed: {e}")
-            # Не выбрасываем исключение, просто логируем
-    
-    def get_status(self) -> str:
-        """Получение статуса кэша для health check с обработкой сбоев"""
-        try:
-            total_entries = len(self._cache)
-            return f"healthy ({total_entries} entries)"
-        except Exception as e:
-            logger.warning(f"Cache status check failed: {e}")
-            return "unhealthy (status check failed)"
 
 
 class AirQualityService:
     """
     Сервис для получения данных о качестве воздуха из Open-Meteo API
-    с поддержкой кэширования и обработки ошибок.
+    с поддержкой кэширования, connection pooling и обработки ошибок.
     """
     
     def __init__(self):
         self.base_url = "https://air-quality-api.open-meteo.com/v1/air-quality"
-        self.client = httpx.AsyncClient(
-            timeout=30.0,
-            limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
-        )
-        self.cache_manager = CacheManager()
+        # Use connection pool manager instead of direct httpx client
+        self.use_connection_pool = config.performance.connection_pooling_enabled
+        
+        # Fallback client for when connection pooling is disabled
+        if not self.use_connection_pool:
+            self.client = httpx.AsyncClient(
+                timeout=30.0,
+                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+            )
+        else:
+            self.client = None
+        
+        self.cache_manager = MultiLevelCacheManager()
         self.aqi_calculator = AQICalculator()
     
     async def __aenter__(self):
@@ -135,7 +64,8 @@ class AirQualityService:
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Асинхронный контекстный менеджер - выход"""
-        await self.client.aclose()
+        if self.client:
+            await self.client.aclose()
     
     async def get_current_air_quality(self, lat: float, lon: float) -> AirQualityData:
         """
@@ -167,10 +97,23 @@ class AirQualityService:
             request_url = f"{self.base_url}?latitude={lat}&longitude={lon}&current=pm10,pm2_5,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=Europe/Moscow"
             self._log_external_request(request_url, has_coordinates=True)
             
-            response = await self.client.get(self.base_url, params=params)
-            response.raise_for_status()
+            # Use connection pool if enabled, otherwise fallback to direct client
+            if self.use_connection_pool:
+                api_request = APIRequest(
+                    method="GET",
+                    url=self.base_url,
+                    params=params
+                )
+                api_response = await get_connection_pool_manager().execute_request(
+                    ServiceType.OPEN_METEO, 
+                    api_request
+                )
+                api_data = api_response.data
+            else:
+                response = await self.client.get(self.base_url, params=params)
+                response.raise_for_status()
+                api_data = response.json()
             
-            api_data = response.json()
             processed_data = await self._process_current_data(api_data, lat, lon)
             
             # Кэширование результата с обработкой сбоев
@@ -211,10 +154,23 @@ class AirQualityService:
             request_url = f"{self.base_url}?latitude={lat}&longitude={lon}&hourly=pm10,pm2_5,nitrogen_dioxide,sulphur_dioxide,ozone&forecast_days=1&timezone=Europe/Moscow"
             self._log_external_request(request_url, has_coordinates=True)
             
-            response = await self.client.get(self.base_url, params=params)
-            response.raise_for_status()
+            # Use connection pool if enabled, otherwise fallback to direct client
+            if self.use_connection_pool:
+                api_request = APIRequest(
+                    method="GET",
+                    url=self.base_url,
+                    params=params
+                )
+                api_response = await get_connection_pool_manager().execute_request(
+                    ServiceType.OPEN_METEO, 
+                    api_request
+                )
+                api_data = api_response.data
+            else:
+                response = await self.client.get(self.base_url, params=params)
+                response.raise_for_status()
+                api_data = response.json()
             
-            api_data = response.json()
             return await self._process_forecast_data(api_data, lat, lon)
             
         except httpx.RequestError as e:
@@ -228,7 +184,7 @@ class AirQualityService:
             raise Exception("Ошибка обработки прогноза качества воздуха")
     
     async def _process_current_data(self, api_data: Dict[str, Any], lat: float, lon: float) -> AirQualityData:
-        """Обработка текущих данных от Open-Meteo API"""
+        """Обработка текущих данных от Open-Meteo API с интеграцией WeatherAPI"""
         # Валидация структуры ответа
         if not isinstance(api_data, dict):
             raise ValueError("Invalid API response format")
@@ -276,11 +232,15 @@ class AirQualityService:
             nmu_risk = "unknown"
             health_warnings = ["Данные о качестве воздуха недоступны"]
             
+            # Try to get weather data even if air quality data is unavailable
+            weather_info = await self._get_weather_data(lat, lon)
+            
             return AirQualityData(
                 timestamp=datetime.now(timezone.utc),
                 location=LocationInfo(latitude=lat, longitude=lon),
                 aqi=aqi_info,
                 pollutants=pollutants,
+                weather=weather_info,
                 recommendations=recommendations,
                 nmu_risk=nmu_risk,
                 health_warnings=health_warnings
@@ -310,18 +270,22 @@ class AirQualityService:
         # Генерация предупреждений о здоровье
         health_warnings = self._generate_health_warnings(aqi_value, pollutants)
         
+        # Получение данных о погоде от WeatherAPI
+        weather_info = await self._get_weather_data(lat, lon)
+        
         return AirQualityData(
             timestamp=datetime.now(timezone.utc),
             location=LocationInfo(latitude=lat, longitude=lon),
             aqi=aqi_info,
             pollutants=pollutants,
+            weather=weather_info,
             recommendations=recommendations,
             nmu_risk=nmu_risk,
             health_warnings=health_warnings
         )
     
     async def _process_forecast_data(self, api_data: Dict[str, Any], lat: float, lon: float) -> List[AirQualityData]:
-        """Обработка прогнозных данных от Open-Meteo API"""
+        """Обработка прогнозных данных от Open-Meteo API с интеграцией WeatherAPI"""
         # Валидация структуры ответа
         if not isinstance(api_data, dict):
             raise ValueError("Invalid API response format")
@@ -339,6 +303,9 @@ class AirQualityService:
             raise ValueError("Missing time data in API response")
         
         forecast_list = []
+        
+        # Get weather data once for the location (current weather applies to forecast)
+        weather_info = await self._get_weather_data(lat, lon)
         
         # Ограничиваем до 24 часов
         for i in range(min(24, len(times))):
@@ -375,6 +342,7 @@ class AirQualityService:
                 location=LocationInfo(latitude=lat, longitude=lon),
                 aqi=aqi_info,
                 pollutants=pollutants,
+                weather=weather_info,  # Include weather data in forecast
                 recommendations=recommendations,
                 nmu_risk=nmu_risk,
                 health_warnings=health_warnings
@@ -388,6 +356,68 @@ class AirQualityService:
         
         return forecast_list
     
+    async def _get_weather_data(self, lat: float, lon: float) -> Optional[WeatherInfo]:
+        """
+        Получение данных о погоде от WeatherAPI с обработкой ошибок и fallback.
+        
+        Возвращает None если WeatherAPI недоступен и fallback отключен.
+        """
+        if not config.weather_api.enabled:
+            logger.debug("WeatherAPI is disabled, skipping weather data")
+            return None
+        
+        try:
+            # Get combined weather data from WeatherAPI
+            weather_data = await weather_api_manager.get_combined_weather(lat, lon)
+            
+            # Convert to schema format
+            weather_info = WeatherInfo(
+                temperature=TemperatureData(
+                    celsius=weather_data.temperature.celsius,
+                    fahrenheit=weather_data.temperature.fahrenheit,
+                    timestamp=weather_data.temperature.timestamp,
+                    source=weather_data.temperature.source
+                ),
+                wind=WindData(
+                    speed_kmh=weather_data.wind.speed_kmh,
+                    speed_mph=weather_data.wind.speed_mph,
+                    direction_degrees=weather_data.wind.direction_degrees,
+                    direction_compass=weather_data.wind.direction_compass,
+                    timestamp=weather_data.wind.timestamp
+                ) if weather_data.wind else None,
+                pressure=PressureData(
+                    pressure_mb=weather_data.pressure.pressure_mb,
+                    pressure_in=weather_data.pressure.pressure_in,
+                    timestamp=weather_data.pressure.timestamp
+                ) if weather_data.pressure else None,
+                location_name=weather_data.location_name
+            )
+            
+            logger.debug(f"Successfully retrieved weather data from WeatherAPI for {lat}, {lon}")
+            return weather_info
+            
+        except Exception as e:
+            logger.warning(f"Failed to get weather data from WeatherAPI: {e}")
+            
+            # Return None if fallback is disabled or if we want to continue without weather data
+            if not config.weather_api.fallback_enabled:
+                logger.debug("WeatherAPI fallback disabled, continuing without weather data")
+                return None
+            
+            # Return minimal fallback weather data
+            logger.debug("Using fallback weather data")
+            return WeatherInfo(
+                temperature=TemperatureData(
+                    celsius=0.0,
+                    fahrenheit=32.0,
+                    timestamp=datetime.now(timezone.utc),
+                    source="fallback"
+                ),
+                wind=None,  # No fallback wind data
+                pressure=None,  # No fallback pressure data
+                location_name=f"{lat:.2f},{lon:.2f}"
+            )
+
     def _generate_health_warnings(self, aqi_value: int, pollutants: PollutantData) -> List[str]:
         """Генерация предупреждений о здоровье на основе AQI и загрязнителей"""
         warnings = []
@@ -439,7 +469,7 @@ class AirQualityService:
             str: Статус API ("healthy", "unhealthy", "degraded")
         """
         try:
-            # Простой запрос для проверки доступности с коротким таймаутом
+            # Simple ping request based on service type
             test_params = {
                 "latitude": 55.7558,  # Москва для тестирования
                 "longitude": 37.6176,
@@ -450,16 +480,31 @@ class AirQualityService:
             test_url = f"{self.base_url}?latitude=55.7558&longitude=37.6176&current=pm10"
             self._log_external_request(test_url, has_coordinates=True)
             
-            response = await self.client.get(
-                self.base_url,
-                params=test_params,
-                timeout=10.0  # Короткий таймаут для health check
-            )
-            
-            response.raise_for_status()
+            # Use connection pool if enabled, otherwise fallback to direct client
+            if self.use_connection_pool:
+                api_request = APIRequest(
+                    method="GET",
+                    url=self.base_url,
+                    params=test_params,
+                    timeout=10.0
+                )
+                api_response = await get_connection_pool_manager().execute_request(
+                    ServiceType.OPEN_METEO, 
+                    api_request
+                )
+                data = api_response.data
+                status_code = api_response.status_code
+            else:
+                response = await self.client.get(
+                    self.base_url,
+                    params=test_params,
+                    timeout=10.0  # Короткий таймаут для health check
+                )
+                response.raise_for_status()
+                data = response.json()
+                status_code = response.status_code
             
             # Проверка структуры ответа
-            data = response.json()
             if not isinstance(data, dict):
                 logger.warning("External API returned invalid response format")
                 return "degraded"
@@ -530,4 +575,5 @@ class AirQualityService:
     async def cleanup(self):
         """Очистка ресурсов и устаревших записей кэша"""
         await self.cache_manager.clear_expired()
-        await self.client.aclose()
+        if self.client:
+            await self.client.aclose()

@@ -16,7 +16,8 @@ from unittest.mock import AsyncMock, patch, MagicMock
 import httpx
 from datetime import datetime, timezone, timedelta
 
-from services import AirQualityService, CacheManager
+from services import AirQualityService
+from cache import MultiLevelCacheManager as CacheManager
 from schemas import AirQualityData, PollutantData, AQIInfo, LocationInfo
 
 

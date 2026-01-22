@@ -11,7 +11,8 @@ from fastapi.testclient import TestClient
 import httpx
 
 from main import app
-from services import AirQualityService, CacheManager
+from services import AirQualityService
+from cache import MultiLevelCacheManager
 from utils import AQICalculator
 
 
@@ -51,9 +52,11 @@ async def air_quality_service() -> AsyncGenerator[AirQualityService, None]:
 
 
 @pytest.fixture
-def cache_manager() -> CacheManager:
+async def cache_manager() -> AsyncGenerator[MultiLevelCacheManager, None]:
     """Cache manager instance for testing."""
-    return CacheManager(ttl_minutes=1)  # Short TTL for tests
+    manager = MultiLevelCacheManager()
+    yield manager
+    await manager.cleanup()
 
 
 @pytest.fixture

@@ -5,8 +5,15 @@ httpx>=0.25.0
 pydantic>=2.4.0
 python-multipart>=0.0.6
 
+# Redis dependencies for distributed caching
+redis>=5.0.0
+aioredis>=2.0.0
+
 # Web interface dependencies
 jinja2>=3.1.0
+
+# System monitoring dependencies
+psutil>=5.9.0
 
 # Testing dependencies
 pytest>=7.4.0

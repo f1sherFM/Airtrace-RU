@@ -131,8 +131,53 @@ def get_utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# WeatherAPI data models
+class TemperatureData(BaseModel):
+    """Temperature data from WeatherAPI"""
+    celsius: float = Field(..., description="Температура в градусах Цельсия")
+    fahrenheit: float = Field(..., description="Температура в градусах Фаренгейта")
+    timestamp: datetime = Field(default_factory=get_utc_now, description="Временная метка данных")
+    source: str = Field(default="weatherapi", description="Источник данных")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, dt: datetime) -> str:
+        return dt.isoformat()
+
+
+class WindData(BaseModel):
+    """Wind data from WeatherAPI"""
+    speed_kmh: float = Field(..., description="Скорость ветра в км/ч")
+    speed_mph: float = Field(..., description="Скорость ветра в милях/ч")
+    direction_degrees: int = Field(..., description="Направление ветра в градусах")
+    direction_compass: str = Field(..., description="Направление ветра по компасу")
+    timestamp: datetime = Field(default_factory=get_utc_now, description="Временная метка данных")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, dt: datetime) -> str:
+        return dt.isoformat()
+
+
+class PressureData(BaseModel):
+    """Atmospheric pressure data from WeatherAPI"""
+    pressure_mb: float = Field(..., description="Атмосферное давление в миллибарах")
+    pressure_in: float = Field(..., description="Атмосферное давление в дюймах ртутного столба")
+    timestamp: datetime = Field(default_factory=get_utc_now, description="Временная метка данных")
+    
+    @field_serializer('timestamp')
+    def serialize_timestamp(self, dt: datetime) -> str:
+        return dt.isoformat()
+
+
+class WeatherInfo(BaseModel):
+    """Combined weather information from WeatherAPI"""
+    temperature: Optional[TemperatureData] = Field(None, description="Данные о температуре")
+    wind: Optional[WindData] = Field(None, description="Данные о ветре")
+    pressure: Optional[PressureData] = Field(None, description="Данные об атмосферном давлении")
+    location_name: Optional[str] = Field(None, description="Название местоположения")
+
+
 class AirQualityData(BaseModel):
-    """Основная модель данных о качестве воздуха"""
+    """Основная модель данных о качестве воздуха с интеграцией WeatherAPI"""
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -153,6 +198,27 @@ class AirQualityData(BaseModel):
                     "no2": 35.1,
                     "so2": 12.3
                 },
+                "weather": {
+                    "temperature": {
+                        "celsius": 15.5,
+                        "fahrenheit": 59.9,
+                        "timestamp": "2024-01-15T12:00:00Z",
+                        "source": "weatherapi"
+                    },
+                    "wind": {
+                        "speed_kmh": 12.5,
+                        "speed_mph": 7.8,
+                        "direction_degrees": 180,
+                        "direction_compass": "S",
+                        "timestamp": "2024-01-15T12:00:00Z"
+                    },
+                    "pressure": {
+                        "pressure_mb": 1013.25,
+                        "pressure_in": 29.92,
+                        "timestamp": "2024-01-15T12:00:00Z"
+                    },
+                    "location_name": "Moscow"
+                },
                 "recommendations": "Чувствительные люди должны ограничить длительное пребывание на улице",
                 "nmu_risk": "low",
                 "health_warnings": []
@@ -168,6 +234,7 @@ class AirQualityData(BaseModel):
     @field_serializer('timestamp')
     def serialize_timestamp(self, dt: datetime) -> str:
         return dt.isoformat()
+    
     location: LocationInfo = Field(
         ..., 
         description="Координаты местоположения"
@@ -179,6 +246,10 @@ class AirQualityData(BaseModel):
     pollutants: PollutantData = Field(
         ..., 
         description="Данные о концентрации загрязнителей"
+    )
+    weather: Optional[WeatherInfo] = Field(
+        None,
+        description="Дополнительные данные о погоде от WeatherAPI"
     )
     recommendations: str = Field(
         ..., 

@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from hypothesis import given, strategies as st, settings
 from typing import Dict, Any
 
-from services import CacheManager
+from cache import MultiLevelCacheManager as CacheManager
 from schemas import CacheEntry
 
 

@@ -15,7 +15,8 @@ from hypothesis import given, strategies as st, settings, HealthCheck
 from fastapi.testclient import TestClient
 
 from main import app
-from services import AirQualityService, CacheManager
+from services import AirQualityService
+from cache import MultiLevelCacheManager as CacheManager
 from schemas import AirQualityData
 
 
