@@ -11,6 +11,9 @@ import logging
 from typing import Dict, Tuple, Optional, Any, List
 from datetime import datetime
 
+# ✅ FIX #6: Import centralized validators
+from validators import CoordinateValidator, PollutantValidator
+
 logger = logging.getLogger(__name__)
 
 
@@ -507,6 +510,8 @@ def validate_coordinates(lat: float, lon: float) -> bool:
     """
     Валидация координат для российской территории.
     
+    ✅ FIX #6: Now uses centralized CoordinateValidator
+    
     Args:
         lat: Широта
         lon: Долгота
@@ -514,17 +519,8 @@ def validate_coordinates(lat: float, lon: float) -> bool:
     Returns:
         bool: True если координаты валидны для России
     """
-    # Приблизительные границы России
-    # Широта: от 41° до 82° с.ш.
-    # Долгота: от 19° до 169° в.д.
-    
-    if not (41.0 <= lat <= 82.0):
-        return False
-    
-    if not (19.0 <= lon <= 169.0):
-        return False
-    
-    return True
+    is_valid, _ = CoordinateValidator.validate_russian_territory(lat, lon)
+    return is_valid
 
 
 def get_pollutant_name_russian(pollutant_code: str) -> str:

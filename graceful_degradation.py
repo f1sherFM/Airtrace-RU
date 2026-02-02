@@ -20,6 +20,8 @@ import json
 from schemas import AirQualityData, HealthCheckResponse
 from config import config
 
+from collections import OrderedDict
+
 logger = logging.getLogger(__name__)
 
 
@@ -85,7 +87,11 @@ class GracefulDegradationManager:
     def __init__(self):
         self.component_health: Dict[str, ComponentHealth] = {}
         self.fallback_configs: Dict[str, FallbackConfig] = {}
-        self.stale_data_cache: Dict[str, Dict[str, Any]] = {}
+        
+        # ✅ FIX #4: Use OrderedDict with size limit for stale data cache
+        self.stale_data_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+        self._max_stale_entries = 1000  # Maximum number of stale data entries
+        
         self.health_check_tasks: Dict[str, asyncio.Task] = {}
         
         # System state
@@ -280,21 +286,26 @@ class GracefulDegradationManager:
         return None
     
     async def store_stale_data(self, cache_key: str, data: Any):
-        """Store data for potential stale serving"""
+        """
+        Store data for potential stale serving with automatic size management.
+        
+        ✅ FIX #4: Implements LRU eviction to prevent unbounded memory growth
+        """
+        # Check if we need to evict oldest entry
+        if len(self.stale_data_cache) >= self._max_stale_entries:
+            # Remove oldest entry (FIFO from OrderedDict)
+            self.stale_data_cache.popitem(last=False)
+            logger.debug(f"Evicted oldest stale data entry (limit: {self._max_stale_entries})")
+        
+        # Store new data (will be added at the end)
         self.stale_data_cache[cache_key] = {
             "data": data,
             "timestamp": time.time()
         }
         
-        # Cleanup old stale data (keep only last 1000 entries)
-        if len(self.stale_data_cache) > 1000:
-            # Remove oldest entries
-            sorted_keys = sorted(
-                self.stale_data_cache.keys(),
-                key=lambda k: self.stale_data_cache[k]["timestamp"]
-            )
-            for key in sorted_keys[:100]:  # Remove oldest 100 entries
-                del self.stale_data_cache[key]
+        # Move to end if key already exists (LRU behavior)
+        if cache_key in self.stale_data_cache:
+            self.stale_data_cache.move_to_end(cache_key)
     
     async def should_use_cached_response(self, component_name: str) -> bool:
         """

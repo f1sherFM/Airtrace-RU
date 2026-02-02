@@ -8,6 +8,7 @@
 import httpx
 import asyncio
 import logging
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -32,6 +33,54 @@ from weather_api_manager import weather_api_manager
 from config import config
 
 logger = logging.getLogger(__name__)
+
+
+def mask_coordinates(text: str) -> str:
+    """
+    ✅ FIX #9: Mask coordinates in log messages for privacy
+    
+    Replaces coordinate values with *** to prevent logging actual locations.
+    """
+    # Mask latitude/longitude parameters in URLs
+    text = re.sub(r'latitude=[\d\.\-]+', 'latitude=***', text)
+    text = re.sub(r'longitude=[\d\.\-]+', 'longitude=***', text)
+    text = re.sub(r'lat=[\d\.\-]+', 'lat=***', text)
+    text = re.sub(r'lon=[\d\.\-]+', 'lon=***', text)
+    
+    # Mask coordinate tuples like (55.7558, 37.6176)
+    text = re.sub(r'\([\d\.\-]+,\s*[\d\.\-]+\)', '(***, ***)', text)
+    
+    # Mask coordinate objects like {"latitude": 55.7558, "longitude": 37.6176}
+    text = re.sub(r'"latitude":\s*[\d\.\-]+', '"latitude": ***', text)
+    text = re.sub(r'"longitude":\s*[\d\.\-]+', '"longitude": ***', text)
+    
+    return text
+
+
+def log_with_masked_coordinates(level: str, message: str, **kwargs):
+    """
+    ✅ FIX #9: Log message with masked coordinates
+    
+    Args:
+        level: Log level (debug, info, warning, error)
+        message: Log message
+        **kwargs: Additional context to log
+    """
+    masked_message = mask_coordinates(message)
+    
+    # Mask coordinates in kwargs
+    masked_kwargs = {}
+    for key, value in kwargs.items():
+        if isinstance(value, str):
+            masked_kwargs[key] = mask_coordinates(value)
+        else:
+            masked_kwargs[key] = value
+    
+    log_func = getattr(logger, level.lower())
+    if masked_kwargs:
+        log_func(f"{masked_message} - {masked_kwargs}")
+    else:
+        log_func(masked_message)
 
 
 
@@ -95,7 +144,9 @@ class AirQualityService:
             
             # Логирование внешнего запроса с координатами (через privacy middleware)
             request_url = f"{self.base_url}?latitude={lat}&longitude={lon}&current=pm10,pm2_5,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=Europe/Moscow"
-            self._log_external_request(request_url, has_coordinates=True)
+            # ✅ FIX #9: Mask coordinates in logs
+            masked_url = mask_coordinates(request_url)
+            self._log_external_request(masked_url, has_coordinates=True)
             
             # Use connection pool if enabled, otherwise fallback to direct client
             if self.use_connection_pool:
@@ -152,7 +203,9 @@ class AirQualityService:
             
             # Логирование внешнего запроса с координатами
             request_url = f"{self.base_url}?latitude={lat}&longitude={lon}&hourly=pm10,pm2_5,nitrogen_dioxide,sulphur_dioxide,ozone&forecast_days=1&timezone=Europe/Moscow"
-            self._log_external_request(request_url, has_coordinates=True)
+            # ✅ FIX #9: Mask coordinates in logs
+            masked_url = mask_coordinates(request_url)
+            self._log_external_request(masked_url, has_coordinates=True)
             
             # Use connection pool if enabled, otherwise fallback to direct client
             if self.use_connection_pool:
@@ -478,7 +531,9 @@ class AirQualityService:
             
             # Логирование запроса через privacy middleware
             test_url = f"{self.base_url}?latitude=55.7558&longitude=37.6176&current=pm10"
-            self._log_external_request(test_url, has_coordinates=True)
+            # ✅ FIX #9: Mask coordinates in logs
+            masked_url = mask_coordinates(test_url)
+            self._log_external_request(masked_url, has_coordinates=True)
             
             # Use connection pool if enabled, otherwise fallback to direct client
             if self.use_connection_pool:
@@ -552,7 +607,11 @@ class AirQualityService:
             return "unhealthy"
     
     def _log_external_request(self, url: str, has_coordinates: bool = False):
-        """Логирование внешних запросов через privacy middleware"""
+        """
+        Логирование внешних запросов через privacy middleware
+        
+        ✅ FIX #9: URL should already be masked before calling this function
+        """
         try:
             from middleware import get_privacy_middleware
             
@@ -563,11 +622,11 @@ class AirQualityService:
                     logger.warning(f"External request blocked by privacy middleware: {url}")
                     return
                 
-                # Логирование запроса
+                # Логирование запроса (URL already masked)
                 privacy_middleware.log_external_request(url, has_coordinates)
             else:
                 # Fallback логирование если middleware недоступен
-                logger.info(f"External API request - URL: [COORDINATES_FILTERED], Has coordinates: {has_coordinates}")
+                logger.info(f"External API request - URL: {url}, Has coordinates: {has_coordinates}")
                 
         except Exception as e:
             logger.error(f"Error logging external request: {e}")

@@ -28,6 +28,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     Integrates with the RateLimiter to provide automatic rate limiting
     for all API endpoints with proper HTTP responses and headers.
+    
+    ✅ FIX #8: Added IP-based rate limiting
     """
     
     def __init__(
@@ -36,7 +38,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         rate_limiter: Optional[RateLimiter] = None,
         enabled: bool = True,
         skip_paths: Optional[list] = None,
-        custom_identifier: Optional[Callable[[Request], str]] = None
+        custom_identifier: Optional[Callable[[Request], str]] = None,
+        # ✅ NEW: IP-based rate limiting configuration
+        ip_rate_limit_enabled: bool = True,
+        max_requests_per_ip_per_minute: int = 100,
+        ip_burst_multiplier: float = 1.5
     ):
         super().__init__(app)
         self.rate_limiter = rate_limiter or RateLimiter()
@@ -44,12 +50,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.skip_paths = skip_paths or ["/docs", "/redoc", "/openapi.json"]
         self.custom_identifier = custom_identifier
         
+        # ✅ NEW: IP-based rate limiting
+        self.ip_rate_limit_enabled = ip_rate_limit_enabled
+        self.max_requests_per_ip = max_requests_per_ip_per_minute
+        self.ip_burst_limit = int(max_requests_per_ip_per_minute * ip_burst_multiplier)
+        self.ip_request_counts: dict[str, dict] = {}  # IP -> {count, reset_time, burst_count}
+        
         # Metrics
         self.total_requests = 0
         self.blocked_requests = 0
+        self.ip_blocked_requests = 0
         self.start_time = time.time()
         
-        logger.info(f"Rate limiting middleware initialized - Enabled: {enabled}")
+        logger.info(
+            f"Rate limiting middleware initialized - "
+            f"Enabled: {enabled}, IP limiting: {ip_rate_limit_enabled}, "
+            f"IP limit: {max_requests_per_ip_per_minute}/min"
+        )
     
     def _should_skip_path(self, path: str) -> bool:
         """Check if path should skip rate limiting"""
@@ -100,6 +117,110 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             headers=headers
         )
     
+    def _check_ip_rate_limit(self, client_ip: str) -> tuple[bool, int]:
+        """
+        ✅ FIX #8: Check IP-based rate limit
+        
+        Returns:
+            tuple: (allowed, retry_after_seconds)
+        """
+        if not self.ip_rate_limit_enabled:
+            return True, 0
+        
+        current_time = time.time()
+        
+        # Get or create IP tracking entry
+        if client_ip not in self.ip_request_counts:
+            self.ip_request_counts[client_ip] = {
+                "count": 0,
+                "reset_time": current_time + 60,  # 1 minute window
+                "burst_count": 0,
+                "burst_reset_time": current_time + 10  # 10 second burst window
+            }
+        
+        ip_data = self.ip_request_counts[client_ip]
+        
+        # Reset counter if window expired
+        if current_time >= ip_data["reset_time"]:
+            ip_data["count"] = 0
+            ip_data["reset_time"] = current_time + 60
+        
+        # Reset burst counter if burst window expired
+        if current_time >= ip_data["burst_reset_time"]:
+            ip_data["burst_count"] = 0
+            ip_data["burst_reset_time"] = current_time + 10
+        
+        # Check burst limit (short-term)
+        if ip_data["burst_count"] >= self.ip_burst_limit:
+            retry_after = int(ip_data["burst_reset_time"] - current_time) + 1
+            logger.warning(
+                f"IP burst limit exceeded - IP: {client_ip[:10]}..., "
+                f"Burst: {ip_data['burst_count']}/{self.ip_burst_limit}"
+            )
+            return False, retry_after
+        
+        # Check regular limit (per minute)
+        if ip_data["count"] >= self.max_requests_per_ip:
+            retry_after = int(ip_data["reset_time"] - current_time) + 1
+            logger.warning(
+                f"IP rate limit exceeded - IP: {client_ip[:10]}..., "
+                f"Count: {ip_data['count']}/{self.max_requests_per_ip}"
+            )
+            return False, retry_after
+        
+        # Increment counters
+        ip_data["count"] += 1
+        ip_data["burst_count"] += 1
+        
+        # Cleanup old entries (keep only last 1000 IPs)
+        if len(self.ip_request_counts) > 1000:
+            # First try to remove expired entries
+            expired_ips = [
+                ip for ip, data in self.ip_request_counts.items()
+                if current_time >= data["reset_time"]
+            ]
+            
+            if expired_ips:
+                # Remove expired entries
+                for ip in expired_ips[:100]:  # Remove up to 100 expired
+                    del self.ip_request_counts[ip]
+            else:
+                # If no expired entries, remove oldest by reset_time
+                sorted_ips = sorted(
+                    self.ip_request_counts.items(),
+                    key=lambda x: x[1]["reset_time"]
+                )
+                # Remove oldest 100 entries
+                for ip, _ in sorted_ips[:100]:
+                    del self.ip_request_counts[ip]
+        
+        return True, 0
+    
+    def _create_ip_rate_limit_response(self, client_ip: str, retry_after: int) -> JSONResponse:
+        """Create HTTP 429 response for IP rate limit"""
+        error_response = ErrorResponse(
+            code="IP_RATE_LIMIT_EXCEEDED",
+            message=f"Превышен лимит запросов с вашего IP. Попробуйте через {retry_after} секунд."
+        )
+        
+        headers = {
+            "Retry-After": str(retry_after),
+            "X-RateLimit-Limit": str(self.max_requests_per_ip),
+            "X-RateLimit-Policy": "per-ip",
+            "X-RateLimit-Window": "60"
+        }
+        
+        logger.warning(
+            f"IP rate limit exceeded - IP: {client_ip[:10]}..., "
+            f"Retry after: {retry_after}s"
+        )
+        
+        return JSONResponse(
+            status_code=429,
+            content=error_response.model_dump(mode='json'),
+            headers=headers
+        )
+    
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request through rate limiting middleware"""
         # Skip if middleware is disabled
@@ -115,6 +236,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         user_agent = self._extract_user_agent(request)
         endpoint = request.url.path
         
+        # ✅ FIX #8: Check IP-based rate limit first
+        ip_allowed, ip_retry_after = self._check_ip_rate_limit(client_ip)
+        if not ip_allowed:
+            self.total_requests += 1
+            self.blocked_requests += 1
+            self.ip_blocked_requests += 1
+            return self._create_ip_rate_limit_response(client_ip, ip_retry_after)
+        
         # Use custom identifier if provided
         if self.custom_identifier:
             try:
@@ -128,7 +257,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 logger.warning(f"Custom identifier function failed: {e}")
                 # Continue with extracted IP
         
-        # Check rate limit
+        # Check endpoint-based rate limit
         try:
             start_time = time.time()
             result = await self.rate_limiter.check_rate_limit(
@@ -176,9 +305,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "enabled": self.enabled,
             "total_requests": self.total_requests,
             "blocked_requests": self.blocked_requests,
+            "ip_blocked_requests": self.ip_blocked_requests,  # ✅ NEW
             "block_rate": (self.blocked_requests / max(1, self.total_requests)) * 100,
+            "ip_block_rate": (self.ip_blocked_requests / max(1, self.total_requests)) * 100,  # ✅ NEW
             "uptime_seconds": uptime,
-            "requests_per_second": self.total_requests / max(1, uptime)
+            "requests_per_second": self.total_requests / max(1, uptime),
+            "ip_rate_limiting": {  # ✅ NEW
+                "enabled": self.ip_rate_limit_enabled,
+                "max_per_minute": self.max_requests_per_ip,
+                "burst_limit": self.ip_burst_limit,
+                "tracked_ips": len(self.ip_request_counts)
+            }
         }
 
 

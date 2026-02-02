@@ -143,9 +143,35 @@ class WeatherAPIConfig:
     
     def __post_init__(self):
         """Validate WeatherAPI configuration"""
-        if self.enabled and not self.api_key:
-            logger.warning("WeatherAPI enabled but no API key provided - disabling WeatherAPI")
-            self.enabled = False
+        # ✅ FIX #1: Add comprehensive API key validation
+        if self.enabled:
+            if not self.api_key:
+                logger.error("WeatherAPI enabled but no API key provided")
+                raise ValueError(
+                    "WEATHER_API_KEY is required when WeatherAPI is enabled. "
+                    "Set WEATHER_API_ENABLED=false to disable or provide a valid API key."
+                )
+            
+            # Validate API key format (WeatherAPI keys are typically 32 characters)
+            if len(self.api_key) < 20:
+                logger.error(f"Invalid WEATHER_API_KEY format: key too short ({len(self.api_key)} chars)")
+                raise ValueError(
+                    f"Invalid WEATHER_API_KEY format: expected at least 20 characters, got {len(self.api_key)}. "
+                    "Please check your API key."
+                )
+            
+            # Check for placeholder/example keys
+            placeholder_keys = ['your_api_key', 'example', 'test', 'demo', 'placeholder']
+            if any(placeholder in self.api_key.lower() for placeholder in placeholder_keys):
+                logger.error("WEATHER_API_KEY appears to be a placeholder value")
+                raise ValueError(
+                    "WEATHER_API_KEY appears to be a placeholder. "
+                    "Please provide a valid API key from weatherapi.com"
+                )
+            
+            logger.info(f"WeatherAPI enabled with valid key (length: {len(self.api_key)})")
+        else:
+            logger.info("WeatherAPI disabled")
         
         if self.timeout <= 0:
             self.timeout = 25.0

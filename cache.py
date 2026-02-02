@@ -3,11 +3,12 @@ Multi-level cache manager for AirTrace RU Backend
 
 Implements L1 (in-memory), L2 (Redis), and L3 (persistent) caching layers
 with privacy-safe key generation and graceful degradation.
+
+✅ FIX #7: Optimized JSON serialization with orjson
 """
 
 import asyncio
 import hashlib
-import json
 import logging
 import os
 import time
@@ -20,11 +21,51 @@ import redis.asyncio as redis
 from redis.asyncio import Redis, RedisCluster
 from redis.exceptions import ConnectionError, TimeoutError, RedisError
 
+# ✅ FIX #7: Use orjson for fast JSON serialization
+try:
+    import orjson
+    HAS_ORJSON = True
+except ImportError:
+    import json
+    HAS_ORJSON = False
+    logging.warning("orjson not available, falling back to standard json")
+
 from config import config
 from schemas import CacheEntry
 from privacy_compliance_validator import validate_cache_key_privacy, validate_metrics_privacy
 
 logger = logging.getLogger(__name__)
+
+
+def json_dumps(obj: Any) -> str:
+    """
+    ✅ FIX #7: Fast JSON serialization using orjson if available
+    
+    Falls back to standard json if orjson is not installed.
+    """
+    if HAS_ORJSON:
+        # orjson returns bytes, decode to str
+        return orjson.dumps(obj, default=str).decode('utf-8')
+    else:
+        import json as stdlib_json
+        return stdlib_json.dumps(obj, default=str)
+
+
+def json_loads(data: Union[str, bytes]) -> Any:
+    """
+    ✅ FIX #7: Fast JSON deserialization using orjson if available
+    
+    Falls back to standard json if orjson is not installed.
+    """
+    if HAS_ORJSON:
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        return orjson.loads(data)
+    else:
+        import json as stdlib_json
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
+        return stdlib_json.loads(data)
 
 
 class CacheLevel(Enum):
@@ -189,10 +230,19 @@ class MultiLevelCacheManager:
             return self._redis_healthy
         
         try:
-            await self._redis_client.ping()
+            # ✅ FIX #5: Add timeout to Redis ping
+            await asyncio.wait_for(
+                self._redis_client.ping(),
+                timeout=2.0  # 2 seconds timeout
+            )
             self._redis_healthy = True
             self._last_health_check = current_time
             return True
+        except asyncio.TimeoutError:
+            logger.warning("Redis health check timed out")
+            self._redis_healthy = False
+            self._last_health_check = current_time
+            return False
         except Exception as e:
             logger.warning(f"Redis health check failed: {e}")
             self._redis_healthy = False
@@ -221,7 +271,7 @@ class MultiLevelCacheManager:
             async for message in pubsub.listen():
                 if message['type'] == 'message':
                     try:
-                        invalidation_data = json.loads(message['data'])
+                        invalidation_data = json_loads(message['data'])
                         
                         # Don't process our own invalidation messages
                         if invalidation_data.get('instance_id') == os.getpid():
@@ -391,15 +441,15 @@ class MultiLevelCacheManager:
     async def _evict_l1_lru(self):
         """Evict least recently used entries from L1 cache"""
         try:
-            if not self._l1_cache:
-                return
-            
-            # Find oldest entry (simple LRU implementation)
-            oldest_key = min(self._l1_cache.keys(), 
-                           key=lambda k: self._l1_cache[k].timestamp)
-            del self._l1_cache[oldest_key]
-            
+            # ✅ FIX #2: Use lock to prevent race condition
             async with self._stats_lock:
+                if not self._l1_cache:
+                    return
+                
+                # Find oldest entry (simple LRU implementation)
+                oldest_key = min(self._l1_cache.keys(), 
+                               key=lambda k: self._l1_cache[k].timestamp)
+                del self._l1_cache[oldest_key]
                 self._stats.eviction_count += 1
                 
         except Exception as e:
@@ -420,11 +470,16 @@ class MultiLevelCacheManager:
         
         try:
             l2_key = self._generate_l2_key(key)
-            data = await self._redis_client.get(l2_key)
+            
+            # ✅ FIX #5: Add timeout to Redis operations
+            data = await asyncio.wait_for(
+                self._redis_client.get(l2_key),
+                timeout=2.0  # 2 seconds timeout
+            )
             
             if data:
                 # Deserialize and check expiration
-                cache_data = json.loads(data)
+                cache_data = json_loads(data)
                 entry = CacheEntry(
                     data=cache_data["data"],
                     timestamp=datetime.fromisoformat(cache_data["timestamp"]),
@@ -438,11 +493,18 @@ class MultiLevelCacheManager:
                     return entry.data
                 else:
                     # Remove expired entry
-                    await self._redis_client.delete(l2_key)
+                    await asyncio.wait_for(
+                        self._redis_client.delete(l2_key),
+                        timeout=1.0
+                    )
                     await self._update_stats(CacheLevel.L2, False)
             else:
                 await self._update_stats(CacheLevel.L2, False)
             
+            return None
+        except asyncio.TimeoutError:
+            logger.warning("Redis get operation timed out")
+            await self._update_stats(CacheLevel.L2, False)
             return None
         except Exception as e:
             logger.warning(f"L2 cache get failed: {e}")
@@ -468,13 +530,20 @@ class MultiLevelCacheManager:
                 "ttl_seconds": ttl
             }
             
+            # ✅ FIX #5: Add timeout to Redis operations
             # Set with Redis TTL for automatic expiration
-            await self._redis_client.setex(
-                l2_key, 
-                ttl, 
-                json.dumps(entry_data, default=str)
+            await asyncio.wait_for(
+                self._redis_client.setex(
+                    l2_key, 
+                    ttl, 
+                    json_dumps(entry_data, default=str)
+                ),
+                timeout=2.0  # 2 seconds timeout
             )
             return True
+        except asyncio.TimeoutError:
+            logger.warning("Redis set operation timed out")
+            return False
         except Exception as e:
             logger.warning(f"L2 cache set failed: {e}")
             return False
@@ -732,7 +801,7 @@ class MultiLevelCacheManager:
                     # Publish to Redis pub/sub for distributed cache invalidation
                     await self._redis_client.publish(
                         f"{self._l2_key_prefix}:invalidation",
-                        json.dumps(invalidation_message)
+                        json_dumps(invalidation_message)
                     )
                     logger.debug(f"Published cache invalidation for key: {key}")
                 except Exception as e:
@@ -1107,7 +1176,7 @@ class MultiLevelCacheManager:
             async for message in pubsub.listen():
                 if message['type'] == 'message':
                     try:
-                        invalidation_data = json.loads(message['data'])
+                        invalidation_data = json_loads(message['data'])
                         
                         # Don't process our own invalidation messages
                         if invalidation_data.get('instance_id') == os.getpid():
