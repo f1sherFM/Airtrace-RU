@@ -12,7 +12,7 @@
             Произвольный город
         </h2>
         
-        <form method="post" action="/custom" class="space-y-6">
+        <form id="custom-city-form" method="post" action="/custom" class="space-y-6">
             <!-- Название города (опционально) -->
             <div>
                 <label for="city_name" class="block text-sm font-medium mb-2 opacity-80">
@@ -346,6 +346,29 @@
 </div>
 
 <script>
+function showNotification(message, type = 'info') {
+    const colors = {
+        success: 'bg-green-500/20 border-green-500/50 text-green-300',
+        error: 'bg-red-500/20 border-red-500/50 text-red-300',
+        info: 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+    };
+
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 ${colors[type]} border rounded-xl px-4 py-3 text-sm z-50 max-w-sm`;
+    notification.innerHTML = `
+        <div class="flex items-center gap-2">
+            <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info'}" class="w-4 h-4"></i>
+            <span>${message}</span>
+        </div>
+    `;
+
+    document.body.appendChild(notification);
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    setTimeout(() => notification.remove(), 3500);
+}
+
 function fillCoordinates(lat, lon, cityName) {
     document.getElementById('lat').value = lat;
     document.getElementById('lon').value = lon;
@@ -636,6 +659,35 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
+
+    const form = document.getElementById('custom-city-form');
+    if (!form) {
+        return;
+    }
+
+    form.addEventListener('submit', function(event) {
+        const lat = parseFloat(document.getElementById('lat').value);
+        const lon = parseFloat(document.getElementById('lon').value);
+
+        if (Number.isNaN(lat) || Number.isNaN(lon)) {
+            event.preventDefault();
+            showNotification('Заполните координаты в десятичном формате перед отправкой формы.', 'error');
+            return;
+        }
+
+        if (lat < -90 || lat > 90) {
+            event.preventDefault();
+            showNotification('Широта должна быть в диапазоне от -90 до 90.', 'error');
+            document.getElementById('lat').focus();
+            return;
+        }
+
+        if (lon < -180 || lon > 180) {
+            event.preventDefault();
+            showNotification('Долгота должна быть в диапазоне от -180 до 180.', 'error');
+            document.getElementById('lon').focus();
+        }
+    });
 });
 </script>
 {% endblock %}

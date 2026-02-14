@@ -4,7 +4,6 @@ AirTrace RU - Веб-приложение на Python
 Замена JavaScript интерфейса на серверный рендеринг
 """
 
-import asyncio
 import httpx
 import csv
 import io
@@ -12,9 +11,9 @@ from fastapi import FastAPI, Request, Form, HTTPException, Query
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 import uvicorn
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 
 app = FastAPI(title="AirTrace RU Web Interface")
@@ -72,61 +71,17 @@ class AirQualityService:
         except:
             return []  # Прогноз не критичен
     
-    async def get_historical_data(self, lat: float, lon: float, hours: int = 24) -> List[Dict[str, Any]]:
-        """Получение исторических данных (симуляция на основе текущих данных и прогноза)"""
+    async def get_time_series_data(self, lat: float, lon: float, hours: int = 24) -> List[Dict[str, Any]]:
+        """Получение реальных почасовых данных на основе прогноза без симуляции"""
         try:
-            # Получаем текущие данные
-            current_data = await self.get_current_data(lat, lon)
-            # Получаем прогноз
             forecast_data = await self.get_forecast_data(lat, lon)
-            
-            historical_data = []
-            now = datetime.now()
-            
-            # Создаем исторические данные на основе текущих и прогнозных
-            for i in range(hours):
-                timestamp = now - timedelta(hours=hours-i-1)
-                
-                # Используем прогнозные данные если есть, иначе текущие с небольшими вариациями
-                if i < len(forecast_data):
-                    base_data = forecast_data[i]
-                else:
-                    base_data = current_data
-                
-                # Добавляем небольшие вариации для имитации исторических данных
-                import random
-                variation = random.uniform(0.8, 1.2)
-                
-                historical_point = {
-                    "timestamp": timestamp.isoformat(),
-                    "location": {
-                        "latitude": lat,
-                        "longitude": lon
-                    },
-                    "aqi": {
-                        "value": max(1, int(base_data["aqi"]["value"] * variation)),
-                        "category": base_data["aqi"]["category"],
-                        "color": base_data["aqi"]["color"]
-                    },
-                    "pollutants": {
-                        "pm2_5": round(base_data["pollutants"]["pm2_5"] * variation, 1),
-                        "pm10": round(base_data["pollutants"]["pm10"] * variation, 1),
-                        "no2": round(base_data["pollutants"]["no2"] * variation, 1),
-                        "so2": round(base_data["pollutants"]["so2"] * variation, 1),
-                        "o3": round(base_data["pollutants"]["o3"] * variation, 1)
-                    },
-                    "nmu_risk": base_data["nmu_risk"],
-                    "temperature": round(random.uniform(-10, 30), 1),
-                    "humidity": round(random.uniform(30, 90), 1),
-                    "wind_speed": round(random.uniform(0, 15), 1)
-                }
-                
-                historical_data.append(historical_point)
-            
-            return historical_data
-            
-        except Exception as e:
-            # В случае ошибки возвращаем пустой список
+
+            if not forecast_data:
+                return []
+
+            # Возвращаем только фактические точки прогноза без искусственной генерации.
+            return forecast_data[:hours]
+        except Exception:
             return []
     
     async def check_health(self) -> Dict[str, Any]:
@@ -202,11 +157,11 @@ def get_nmu_config(risk: str) -> Dict[str, str]:
     }
     return configs.get(risk, configs["low"])
 
-def prepare_export_data(historical_data: List[Dict[str, Any]], city_name: str) -> List[Dict[str, Any]]:
+def prepare_export_data(time_series_data: List[Dict[str, Any]], city_name: str) -> List[Dict[str, Any]]:
     """Подготовка данных для экспорта"""
     export_data = []
     
-    for point in historical_data:
+    for point in time_series_data:
         export_point = {
             "timestamp": point["timestamp"],
             "city": city_name,
@@ -392,32 +347,33 @@ async def api_health():
     }
 
 @app.get("/api/historical/{city_key}")
-async def get_historical_data_api(
+@app.get("/api/timeseries/{city_key}")
+async def get_timeseries_data_api(
     city_key: str,
-    days: int = Query(1, ge=1, le=7)  # От 1 до 7 дней
+    hours: int = Query(24, ge=1, le=168)  # До недели почасового прогноза
 ):
-    """API для получения исторических данных для отображения на сайте"""
+    """Эндпоинт таймсерий: возвращает реальный почасовой прогноз (без симуляции)"""
     
     if city_key not in CITIES:
         raise HTTPException(status_code=404, detail="Город не найден")
     
     city = CITIES[city_key]
-    hours = days * 24
-    
     try:
-        # Получаем исторические данные
-        historical_data = await air_service.get_historical_data(
+        # Получаем фактические данные прогноза
+        time_series_data = await air_service.get_time_series_data(
             city["lat"], city["lon"], hours
         )
         
-        if not historical_data:
-            raise HTTPException(status_code=503, detail="Не удалось получить исторические данные")
+        if not time_series_data:
+            raise HTTPException(status_code=503, detail="Не удалось получить данные прогноза")
         
         return {
             "city": city["name"],
-            "period_days": days,
-            "data_points": len(historical_data),
-            "data": historical_data
+            "source": "forecast",
+            "period_hours_requested": hours,
+            "period_hours_available": len(time_series_data),
+            "data_points": len(time_series_data),
+            "data": time_series_data
         }
         
     except HTTPException:
@@ -426,29 +382,30 @@ async def get_historical_data_api(
         raise HTTPException(status_code=500, detail=f"Ошибка при получении данных: {str(e)}")
 
 @app.get("/api/historical-custom")
-async def get_historical_custom_data_api(
+@app.get("/api/timeseries-custom")
+async def get_timeseries_custom_data_api(
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
     city_name: str = Query("Custom Location"),
-    days: int = Query(1, ge=1, le=7)
+    hours: int = Query(24, ge=1, le=168)
 ):
-    """API для получения исторических данных для произвольных координат"""
-    
-    hours = days * 24
+    """Эндпоинт таймсерий для произвольных координат (без симуляции)"""
     
     try:
-        # Получаем исторические данные
-        historical_data = await air_service.get_historical_data(lat, lon, hours)
+        # Получаем фактические данные прогноза
+        time_series_data = await air_service.get_time_series_data(lat, lon, hours)
         
-        if not historical_data:
-            raise HTTPException(status_code=503, detail="Не удалось получить исторические данные")
+        if not time_series_data:
+            raise HTTPException(status_code=503, detail="Не удалось получить данные прогноза")
         
         return {
             "city": city_name,
             "coordinates": {"lat": lat, "lon": lon},
-            "period_days": days,
-            "data_points": len(historical_data),
-            "data": historical_data
+            "source": "forecast",
+            "period_hours_requested": hours,
+            "period_hours_available": len(time_series_data),
+            "data_points": len(time_series_data),
+            "data": time_series_data
         }
         
     except HTTPException:
@@ -470,16 +427,16 @@ async def export_city_data(
     city = CITIES[city_key]
     
     try:
-        # Получаем исторические данные
-        historical_data = await air_service.get_historical_data(
+        # Получаем реальные почасовые данные прогноза
+        time_series_data = await air_service.get_time_series_data(
             city["lat"], city["lon"], hours
         )
         
-        if not historical_data:
+        if not time_series_data:
             raise HTTPException(status_code=503, detail="Не удалось получить данные для экспорта")
         
         # Подготавливаем данные для экспорта
-        export_data = prepare_export_data(historical_data, city["name"])
+        export_data = prepare_export_data(time_series_data, city["name"])
         
         # Создаем файл в нужном формате
         if format == "csv":
@@ -514,14 +471,14 @@ async def export_custom_data(
     """Экспорт данных для произвольных координат"""
     
     try:
-        # Получаем исторические данные
-        historical_data = await air_service.get_historical_data(lat, lon, hours)
+        # Получаем реальные почасовые данные прогноза
+        time_series_data = await air_service.get_time_series_data(lat, lon, hours)
         
-        if not historical_data:
+        if not time_series_data:
             raise HTTPException(status_code=503, detail="Не удалось получить данные для экспорта")
         
         # Подготавливаем данные для экспорта
-        export_data = prepare_export_data(historical_data, city_name)
+        export_data = prepare_export_data(time_series_data, city_name)
         
         # Создаем файл в нужном формате
         if format == "csv":

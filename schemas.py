@@ -293,9 +293,9 @@ class HealthCheckResponse(BaseModel):
     @field_serializer('timestamp')
     def serialize_timestamp(self, dt: datetime) -> str:
         return dt.isoformat()
-    services: Dict[str, str] = Field(
-        ..., 
-        description="Статус отдельных компонентов системы"
+    services: Dict[str, Any] = Field(
+        ...,
+        description="Статус отдельных компонентов системы (строки и/или вложенные объекты)"
     )
 
 

@@ -137,8 +137,8 @@
                 Экспорт данных
             </h3>
             <p class="text-sm opacity-80 mb-6">
-                Скачайте исторические данные качества воздуха для анализа в Excel, Python или других инструментах.
-                Данные включают AQI, загрязнители и НМУ риски.
+                Скачайте почасовой прогноз качества воздуха для анализа в Excel, Python или других инструментах.
+                Файл включает AQI, загрязнители и НМУ риски.
             </p>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -179,13 +179,13 @@
                     <div class="space-y-3">
                         <!-- CSV Export -->
                         <button 
-                            onclick="exportData('csv')"
+                            onclick="exportData('csv', this)"
                             class="w-full flex items-center justify-between p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-xl transition-colors group"
                         >
                             <div class="flex items-center gap-3">
                                 <i data-lucide="table" class="w-5 h-5 text-green-400"></i>
                                 <div class="text-left">
-                                    <div class="font-semibold text-sm">CSV файл</div>
+                                    <div class="font-semibold text-sm">Скачать CSV прогноза</div>
                                     <div class="text-xs opacity-70">Для Excel, Google Sheets</div>
                                 </div>
                             </div>
@@ -194,13 +194,13 @@
                         
                         <!-- JSON Export -->
                         <button 
-                            onclick="exportData('json')"
+                            onclick="exportData('json', this)"
                             class="w-full flex items-center justify-between p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded-xl transition-colors group"
                         >
                             <div class="flex items-center gap-3">
                                 <i data-lucide="code" class="w-5 h-5 text-purple-400"></i>
                                 <div class="text-left">
-                                    <div class="font-semibold text-sm">JSON файл</div>
+                                    <div class="font-semibold text-sm">Скачать JSON прогноза</div>
                                     <div class="text-xs opacity-70">Для Python, R, анализа данных</div>
                                 </div>
                             </div>
@@ -211,7 +211,7 @@
                     <div class="text-xs opacity-60 p-3 bg-white/5 rounded-lg">
                         <p class="flex items-start gap-2">
                             <i data-lucide="shield-check" class="w-3 h-3 mt-0.5 shrink-0 text-green-400"></i>
-                            <span>Privacy-first: координаты включены только для анализа, личные данные не собираются.</span>
+                            <span>Privacy-first: координаты включены только для анализа, личные данные не собираются. Доступный горизонт может быть меньше запрошенного.</span>
                         </p>
                     </div>
                 </div>
@@ -219,54 +219,54 @@
         </div>
     </div>
 
-    <!-- Historical Data Section -->
+    <!-- Forecast Time Series Section -->
     <div class="lg:col-span-3">
         <div class="glass-enhanced rounded-3xl p-6">
             <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
                 <i data-lucide="trending-up" class="w-5 h-5 text-green-400"></i>
-                История качества воздуха
+                Почасовой прогноз качества воздуха
             </h3>
             <p class="text-sm opacity-80 mb-6">
-                Просмотрите динамику изменения качества воздуха за последние дни.
+                Просмотрите ожидаемую динамику качества воздуха на ближайшие часы.
             </p>
             
-            <!-- Period Selection -->
+            <!-- Horizon Selection -->
             <div class="flex flex-wrap gap-2 mb-6">
                 <button 
-                    onclick="loadHistoricalData(1)" 
-                    id="period-1" 
+                    onclick="loadTimeSeriesData(24)" 
+                    id="period-24" 
                     class="px-4 py-2 rounded-lg text-sm bg-blue-500/30 border border-blue-500/50 transition-colors"
                 >
-                    1 день
+                    24 часа
                 </button>
                 <button 
-                    onclick="loadHistoricalData(2)" 
-                    id="period-2" 
+                    onclick="loadTimeSeriesData(48)" 
+                    id="period-48" 
                     class="px-4 py-2 rounded-lg text-sm bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
                 >
-                    2 дня
+                    48 часов
                 </button>
                 <button 
-                    onclick="loadHistoricalData(3)" 
-                    id="period-3" 
+                    onclick="loadTimeSeriesData(72)" 
+                    id="period-72" 
                     class="px-4 py-2 rounded-lg text-sm bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
                 >
-                    3 дня
+                    72 часа
                 </button>
                 <button 
-                    onclick="loadHistoricalData(7)" 
-                    id="period-7" 
+                    onclick="loadTimeSeriesData(168)" 
+                    id="period-168" 
                     class="px-4 py-2 rounded-lg text-sm bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
                 >
                     Неделя
                 </button>
             </div>
             
-            <!-- Historical Data Display -->
-            <div id="historical-data" class="space-y-4">
+            <!-- Forecast Data Display -->
+            <div id="timeseries-data" class="space-y-4">
                 <div class="flex items-center justify-center py-8 text-sm opacity-60">
                     <i data-lucide="clock" class="w-4 h-4 mr-2"></i>
-                    Выберите период для просмотра исторических данных
+                    Выберите горизонт для просмотра прогноза
                 </div>
             </div>
         </div>
@@ -277,12 +277,11 @@
 {% block extra_scripts %}
 <script>
     // Функция экспорта данных
-    function exportData(format) {
+    async function exportData(format, button) {
         const hours = document.getElementById('export-hours').value;
         const cityKey = '{{ city_key }}';
         
         // Показываем индикатор загрузки
-        const button = event.target.closest('button');
         const originalContent = button.innerHTML;
         button.innerHTML = `
             <div class="flex items-center justify-center gap-2">
@@ -305,22 +304,43 @@
             exportUrl = `/export/${cityKey}?format=${format}&hours=${hours}`;
         }
         
-        // Создаем скрытую ссылку для скачивания
-        const link = document.createElement('a');
-        link.href = exportUrl;
-        link.download = '';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Восстанавливаем кнопку через 2 секунды
-        setTimeout(() => {
+        try {
+            const response = await fetch(exportUrl);
+
+            if (!response.ok) {
+                let errorMessage = `Ошибка экспорта (${response.status})`;
+                try {
+                    const errorData = await response.json();
+                    if (errorData.detail) {
+                        errorMessage = errorData.detail;
+                    }
+                } catch (_) {
+                    // non-json error body
+                }
+                throw new Error(errorMessage);
+            }
+
+            const blob = await response.blob();
+            const contentDisposition = response.headers.get('Content-Disposition') || '';
+            const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
+            const fileName = fileNameMatch ? fileNameMatch[1] : `airtrace_ru_export_${hours}h.${format}`;
+
+            const downloadUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(downloadUrl);
+
+            showNotification(`Файл ${fileName} успешно скачан`, 'success');
+        } catch (error) {
+            showNotification(`Не удалось выполнить экспорт: ${error.message}`, 'error');
+        } finally {
             button.innerHTML = originalContent;
             button.disabled = false;
-            
-            // Показываем уведомление об успехе
-            showNotification(`Файл ${format.toUpperCase()} готов к скачиванию!`, 'success');
-        }, 2000);
+        }
     }
     
     // Функция показа уведомлений
@@ -353,8 +373,8 @@
         }, 4000);
     }
     
-    // Функция загрузки исторических данных
-    async function loadHistoricalData(days) {
+    // Функция загрузки почасовых прогнозных данных
+    async function loadTimeSeriesData(hours) {
         const cityKey = '{{ city_key }}';
         
         // Обновляем активную кнопку
@@ -362,15 +382,15 @@
             btn.classList.remove('bg-blue-500/30', 'border-blue-500/50');
             btn.classList.add('bg-white/10', 'border-white/20', 'hover:bg-white/20');
         });
-        document.getElementById(`period-${days}`).classList.add('bg-blue-500/30', 'border-blue-500/50');
-        document.getElementById(`period-${days}`).classList.remove('bg-white/10', 'border-white/20', 'hover:bg-white/20');
+        document.getElementById(`period-${hours}`).classList.add('bg-blue-500/30', 'border-blue-500/50');
+        document.getElementById(`period-${hours}`).classList.remove('bg-white/10', 'border-white/20', 'hover:bg-white/20');
         
         // Показываем индикатор загрузки
-        const container = document.getElementById('historical-data');
+        const container = document.getElementById('timeseries-data');
         container.innerHTML = `
             <div class="flex items-center justify-center py-8">
                 <div class="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3"></div>
-                <span class="text-sm opacity-80">Загрузка данных за ${days} ${days === 1 ? 'день' : days < 5 ? 'дня' : 'дней'}...</span>
+                <span class="text-sm opacity-80">Загрузка прогноза на ${hours} ч...</span>
             </div>
         `;
         
@@ -380,9 +400,9 @@
                 const lat = {{ current_city.lat }};
                 const lon = {{ current_city.lon }};
                 const cityName = encodeURIComponent('{{ current_city.name }}');
-                apiUrl = `/api/historical-custom?lat=${lat}&lon=${lon}&city_name=${cityName}&days=${days}`;
+                apiUrl = `/api/timeseries-custom?lat=${lat}&lon=${lon}&city_name=${cityName}&hours=${hours}`;
             } else {
-                apiUrl = `/api/historical/${cityKey}?days=${days}`;
+                apiUrl = `/api/timeseries/${cityKey}?hours=${hours}`;
             }
             
             const response = await fetch(apiUrl);
@@ -392,13 +412,18 @@
                 throw new Error(data.detail || 'Ошибка загрузки данных');
             }
             
-            displayHistoricalData(data);
+            displayTimeSeriesData(data);
             
         } catch (error) {
             container.innerHTML = `
-                <div class="flex items-center justify-center py-8 text-red-400">
-                    <i data-lucide="alert-circle" class="w-4 h-4 mr-2"></i>
-                    <span class="text-sm">Ошибка загрузки: ${error.message}</span>
+                <div class="py-8 text-red-400">
+                    <div class="flex items-center justify-center mb-2">
+                        <i data-lucide="alert-circle" class="w-4 h-4 mr-2"></i>
+                        <span class="text-sm">Ошибка загрузки: ${error.message}</span>
+                    </div>
+                    <p class="text-center text-xs opacity-80">
+                        Проверьте доступность backend API на <code>http://localhost:8000/health</code> и попробуйте снова.
+                    </p>
                 </div>
             `;
             
@@ -409,24 +434,27 @@
         }
     }
     
-    // Функция отображения исторических данных
-    function displayHistoricalData(data) {
-        const container = document.getElementById('historical-data');
-        const historicalData = data.data;
+    // Функция отображения прогнозных данных
+    function displayTimeSeriesData(data) {
+        const container = document.getElementById('timeseries-data');
+        const timeSeriesData = data.data;
         
-        if (!historicalData || historicalData.length === 0) {
+        if (!timeSeriesData || timeSeriesData.length === 0) {
             container.innerHTML = `
                 <div class="flex items-center justify-center py-8 text-yellow-400">
                     <i data-lucide="info" class="w-4 h-4 mr-2"></i>
-                    <span class="text-sm">Нет данных для отображения</span>
+                    <span class="text-sm">Для выбранного горизонта данных нет. Попробуйте 24 или 48 часов.</span>
                 </div>
             `;
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
             return;
         }
         
         // Группируем данные по дням
         const groupedData = {};
-        historicalData.forEach(point => {
+        timeSeriesData.forEach(point => {
             const date = point.timestamp.split('T')[0];
             if (!groupedData[date]) {
                 groupedData[date] = [];
@@ -434,14 +462,26 @@
             groupedData[date].push(point);
         });
         
+        const requestedHours = data.period_hours_requested || timeSeriesData.length;
+        const availableHours = data.period_hours_available || timeSeriesData.length;
+        const sourceLabel = data.source === 'forecast' ? 'почасовой прогноз' : (data.source || 'неизвестно');
+
         let html = `
             <div class="mb-4 text-sm opacity-80">
-                Показано ${historicalData.length} точек данных за ${data.period_days} ${data.period_days === 1 ? 'день' : data.period_days < 5 ? 'дня' : 'дней'}
+                Источник: ${sourceLabel}. Показано ${timeSeriesData.length} точек (запрошено ${requestedHours} ч, доступно ${availableHours} ч).
             </div>
         `;
+
+        if (availableHours < requestedHours) {
+            html += `
+                <div class="mb-4 text-xs text-yellow-300 bg-yellow-500/10 border border-yellow-500/30 rounded-lg px-3 py-2">
+                    Часть точек недоступна у внешнего источника. Попробуйте меньший горизонт.
+                </div>
+            `;
+        }
         
         // Отображаем данные по дням
-        Object.keys(groupedData).sort().reverse().forEach(date => {
+        Object.keys(groupedData).sort().forEach(date => {
             const dayData = groupedData[date];
             const avgAqi = Math.round(dayData.reduce((sum, point) => sum + point.aqi.value, 0) / dayData.length);
             const maxAqi = Math.max(...dayData.map(point => point.aqi.value));
@@ -517,10 +557,10 @@
         clearTimeout(autoRefreshTimer);
     });
     
-    // Загружаем данные за 1 день по умолчанию при загрузке страницы
+    // Загружаем прогноз на 24 часа по умолчанию при загрузке страницы
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
-            loadHistoricalData(1);
+            loadTimeSeriesData(24);
         }, 1000);
     });
 </script>
