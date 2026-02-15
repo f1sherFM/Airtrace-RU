@@ -30,8 +30,8 @@
             <!-- Координаты -->
             <div class="space-y-4">
                 <!-- Переключатель формата -->
-                <div class="flex items-center gap-4 mb-4">
-                    <label class="text-sm font-medium opacity-80">Формат координат:</label>
+                <fieldset class="mb-4" aria-labelledby="coord-format-label">
+                    <legend id="coord-format-label" class="text-sm font-medium opacity-80 mb-2">Формат координат:</legend>
                     <div class="flex gap-2">
                         <button 
                             type="button" 
@@ -58,7 +58,7 @@
                             Текстовый ввод
                         </button>
                     </div>
-                </div>
+                </fieldset>
                 
                 <!-- Десятичные координаты -->
                 <div id="decimal-inputs" class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -346,6 +346,7 @@
 </div>
 
 <script>
+let customNotificationCounter = 0;
 function showNotification(message, type = 'info') {
     const colors = {
         success: 'bg-green-500/20 border-green-500/50 text-green-300',
@@ -353,8 +354,17 @@ function showNotification(message, type = 'info') {
         info: 'bg-blue-500/20 border-blue-500/50 text-blue-300'
     };
 
+    const liveRegion = document.getElementById('custom-notification-live');
+    if (liveRegion) {
+        liveRegion.textContent = message;
+    }
+
     const notification = document.createElement('div');
+    customNotificationCounter += 1;
     notification.className = `fixed top-4 right-4 ${colors[type]} border rounded-xl px-4 py-3 text-sm z-50 max-w-sm`;
+    notification.setAttribute('role', 'status');
+    notification.setAttribute('aria-live', 'polite');
+    notification.setAttribute('id', `custom-notification-${customNotificationCounter}`);
     notification.innerHTML = `
         <div class="flex items-center gap-2">
             <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info'}" class="w-4 h-4"></i>
@@ -481,28 +491,10 @@ function convertDMSToDecimal() {
         switchFormat('decimal');
         
         // Показываем уведомление
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-4 right-4 bg-green-500/20 border border-green-500/50 rounded-xl px-4 py-2 text-sm z-50';
-        notification.innerHTML = `
-            <div class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-green-400"></i>
-                Координаты конвертированы: ${lat}, ${lon}
-            </div>
-        `;
-        document.body.appendChild(notification);
-        
-        // Инициализируем иконку
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-        
-        // Убираем уведомление через 3 секунды
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
+        showNotification(`Координаты конвертированы: ${lat}, ${lon}`, 'success');
         
     } catch (error) {
-        alert('Ошибка при конвертации координат: ' + error.message);
+        showNotification('Ошибка при конвертации координат: ' + error.message, 'error');
     }
 }
 
@@ -527,7 +519,7 @@ function parseTextCoordinates() {
     const text = document.getElementById('coord-text').value.trim();
     
     if (!text) {
-        alert('Введите координаты для распознавания');
+        showNotification('Введите координаты для распознавания', 'error');
         return;
     }
     
@@ -596,17 +588,17 @@ function parseTextCoordinates() {
         }
         
         if (lat === null || lon === null) {
-            alert('Не удалось распознать координаты. Попробуйте другой формат.');
+            showNotification('Не удалось распознать координаты. Попробуйте другой формат.', 'error');
             return;
         }
         
         // Валидация
         if (lat < -90 || lat > 90) {
-            alert('Широта должна быть от -90 до 90');
+            showNotification('Широта должна быть от -90 до 90', 'error');
             return;
         }
         if (lon < -180 || lon > 180) {
-            alert('Долгота должна быть от -180 до 180');
+            showNotification('Долгота должна быть от -180 до 180', 'error');
             return;
         }
         
@@ -621,29 +613,10 @@ function parseTextCoordinates() {
         // Переключаемся на десятичный формат
         switchFormat('decimal');
         
-        // Показываем уведомление
-        const notification = document.createElement('div');
-        notification.className = 'fixed top-4 right-4 bg-purple-500/20 border border-purple-500/50 rounded-xl px-4 py-2 text-sm z-50';
-        notification.innerHTML = `
-            <div class="flex items-center gap-2">
-                <i data-lucide="check-circle" class="w-4 h-4 text-purple-400"></i>
-                Координаты распознаны: ${lat}, ${lon}
-            </div>
-        `;
-        document.body.appendChild(notification);
-        
-        // Инициализируем иконку
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
-        
-        // Убираем уведомление через 3 секунды
-        setTimeout(() => {
-            notification.remove();
-        }, 3000);
+        showNotification(`Координаты распознаны: ${lat}, ${lon}`, 'success');
         
     } catch (error) {
-        alert('Ошибка при распознавании координат: ' + error.message);
+        showNotification('Ошибка при распознавании координат: ' + error.message, 'error');
     }
 }
 
@@ -666,6 +639,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     form.addEventListener('submit', function(event) {
+        const submitBtn = form.querySelector('button[type="submit"]');
         const lat = parseFloat(document.getElementById('lat').value);
         const lon = parseFloat(document.getElementById('lon').value);
 
@@ -686,8 +660,21 @@ document.addEventListener('DOMContentLoaded', function() {
             event.preventDefault();
             showNotification('Долгота должна быть в диапазоне от -180 до 180.', 'error');
             document.getElementById('lon').focus();
+            return;
+        }
+
+        // Deterministic loading state for submit flow
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `
+                <div class="flex items-center justify-center gap-2">
+                    <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>Загрузка данных...</span>
+                </div>
+            `;
         }
     });
 });
 </script>
+<div id="custom-notification-live" class="sr-only" aria-live="polite"></div>
 {% endblock %}

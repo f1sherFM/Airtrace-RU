@@ -12,6 +12,10 @@
     <!-- AQI Main Card -->
     <div class="lg:col-span-2 glass-enhanced rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden card-hover">
         <div class="relative z-10">
+            <div class="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-xs uppercase tracking-wide">
+                <i data-lucide="radio" class="w-3 h-3"></i>
+                Сейчас (Now)
+            </div>
             <h2 class="text-lg font-medium opacity-80 mb-1 text-shadow">Индекс качества воздуха (AQI)</h2>
             <div class="flex items-baseline gap-4">
                 <span class="text-8xl font-bold text-shadow">{{ data.aqi.value }}</span>
@@ -77,6 +81,49 @@
         {% endif %}
     </div>
 
+    <!-- Action-Oriented Recommendations -->
+    <div class="lg:col-span-3">
+        <div class="glass-enhanced rounded-3xl p-6 border border-white/20">
+            <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
+                <i data-lucide="siren" class="w-5 h-5 text-amber-300"></i>
+                {{ action_plan.title }}
+            </h3>
+            <p class="text-sm opacity-80 mb-5">
+                Ниже рекомендации разделены по группам, чтобы сразу выбрать безопасное действие.
+            </p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="rounded-2xl p-4 bg-white/10 border border-white/20">
+                    <h4 class="font-semibold text-sm mb-3 flex items-center gap-2">
+                        <i data-lucide="users" class="w-4 h-4 text-blue-300"></i>
+                        Для большинства людей
+                    </h4>
+                    <ul class="space-y-2 text-sm">
+                        {% for item in action_plan.general %}
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="check-circle-2" class="w-4 h-4 mt-0.5 text-green-300 shrink-0"></i>
+                            <span>{{ item }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div class="rounded-2xl p-4 bg-red-500/10 border border-red-400/30">
+                    <h4 class="font-semibold text-sm mb-3 flex items-center gap-2">
+                        <i data-lucide="heart-pulse" class="w-4 h-4 text-red-300"></i>
+                        Для чувствительных групп
+                    </h4>
+                    <ul class="space-y-2 text-sm">
+                        {% for item in action_plan.sensitive %}
+                        <li class="flex items-start gap-2">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 mt-0.5 text-red-300 shrink-0"></i>
+                            <span>{{ item }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Pollutants Grid -->
     <div class="lg:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-4">
         <div class="glass-enhanced rounded-2xl p-4 text-center card-hover">
@@ -111,7 +158,7 @@
     <div class="lg:col-span-3">
         <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
             <i data-lucide="calendar" class="w-5 h-5"></i>
-            Прогноз на 24 часа
+            Прогноз (Forecast): ближайшие 24 часа
         </h3>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {% for hour in forecast %}
@@ -137,8 +184,8 @@
                 Экспорт данных
             </h3>
             <p class="text-sm opacity-80 mb-6">
-                Скачайте почасовой прогноз качества воздуха для анализа в Excel, Python или других инструментах.
-                Файл включает AQI, загрязнители и НМУ риски.
+                Скачайте данные для анализа в Excel, Python или других инструментах.
+                Этот блок экспортирует прогноз (Forecast), а не историю наблюдений (History).
             </p>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -185,7 +232,7 @@
                             <div class="flex items-center gap-3">
                                 <i data-lucide="table" class="w-5 h-5 text-green-400"></i>
                                 <div class="text-left">
-                                    <div class="font-semibold text-sm">Скачать CSV прогноза</div>
+                                    <div class="font-semibold text-sm">Скачать CSV (Forecast)</div>
                                     <div class="text-xs opacity-70">Для Excel, Google Sheets</div>
                                 </div>
                             </div>
@@ -200,12 +247,15 @@
                             <div class="flex items-center gap-3">
                                 <i data-lucide="code" class="w-5 h-5 text-purple-400"></i>
                                 <div class="text-left">
-                                    <div class="font-semibold text-sm">Скачать JSON прогноза</div>
+                                    <div class="font-semibold text-sm">Скачать JSON (Forecast)</div>
                                     <div class="text-xs opacity-70">Для Python, R, анализа данных</div>
                                 </div>
                             </div>
                             <i data-lucide="download" class="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform"></i>
                         </button>
+                    </div>
+                    <div id="export-status" class="text-xs opacity-70 p-3 bg-white/5 rounded-lg border border-white/10">
+                        Статус экспорта: ожидание действия.
                     </div>
                     
                     <div class="text-xs opacity-60 p-3 bg-white/5 rounded-lg">
@@ -224,7 +274,7 @@
         <div class="glass-enhanced rounded-3xl p-6">
             <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
                 <i data-lucide="trending-up" class="w-5 h-5 text-green-400"></i>
-                Почасовой прогноз качества воздуха
+                Forecast: почасовой прогноз качества воздуха
             </h3>
             <p class="text-sm opacity-80 mb-6">
                 Просмотрите ожидаемую динамику качества воздуха на ближайшие часы.
@@ -235,6 +285,7 @@
                 <button 
                     onclick="loadTimeSeriesData(24)" 
                     id="period-24" 
+                    aria-pressed="true"
                     class="px-4 py-2 rounded-lg text-sm bg-blue-500/30 border border-blue-500/50 transition-colors"
                 >
                     24 часа
@@ -242,6 +293,7 @@
                 <button 
                     onclick="loadTimeSeriesData(48)" 
                     id="period-48" 
+                    aria-pressed="false"
                     class="px-4 py-2 rounded-lg text-sm bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
                 >
                     48 часов
@@ -249,6 +301,7 @@
                 <button 
                     onclick="loadTimeSeriesData(72)" 
                     id="period-72" 
+                    aria-pressed="false"
                     class="px-4 py-2 rounded-lg text-sm bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
                 >
                     72 часа
@@ -256,6 +309,7 @@
                 <button 
                     onclick="loadTimeSeriesData(168)" 
                     id="period-168" 
+                    aria-pressed="false"
                     class="px-4 py-2 rounded-lg text-sm bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
                 >
                     Неделя
@@ -272,10 +326,54 @@
         </div>
     </div>
 
+    <!-- History Section -->
+    <div class="lg:col-span-3">
+        <div class="glass-enhanced rounded-3xl p-6">
+            <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
+                <i data-lucide="history" class="w-5 h-5 text-orange-400"></i>
+                History: наблюдения качества воздуха
+            </h3>
+            <p class="text-sm opacity-80 mb-6">
+                Реальная история измерений из backend `/history`. Не является прогнозом.
+            </p>
+
+            <div class="flex flex-wrap gap-2 mb-6">
+                <button onclick="loadHistoryData('24h')" id="history-24h" aria-pressed="true" class="px-4 py-2 rounded-lg text-sm bg-orange-500/30 border border-orange-500/50 transition-colors">24 часа</button>
+                <button onclick="loadHistoryData('7d')" id="history-7d" aria-pressed="false" class="px-4 py-2 rounded-lg text-sm bg-white/10 border border-white/20 hover:bg-white/20 transition-colors">7 дней</button>
+                <button onclick="loadHistoryData('30d')" id="history-30d" aria-pressed="false" class="px-4 py-2 rounded-lg text-sm bg-white/10 border border-white/20 hover:bg-white/20 transition-colors">30 дней</button>
+            </div>
+
+            <div id="history-data" class="space-y-3" aria-live="polite" aria-busy="false">
+                {% if history %}
+                    {% for point in history %}
+                    <div class="glass-dark rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                            <div class="text-xs opacity-60">{{ point.timestamp }}</div>
+                            <div class="text-sm font-semibold">AQI {{ point.aqi }} · {{ point.metadata.data_source }} · {{ point.metadata.freshness }}</div>
+                        </div>
+                        <div class="text-xs opacity-80">
+                            confidence: {{ "%.2f"|format(point.metadata.confidence) }}
+                            {% if point.anomaly_detected %}
+                            <span class="ml-2 px-2 py-1 rounded bg-red-500/20 border border-red-500/40">аномалия: {{ point.anomaly_type }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="flex items-center justify-center py-6 text-sm opacity-60">
+                    <i data-lucide="database" class="w-4 h-4 mr-2"></i>
+                    История пока недоступна для этой локации.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
 </div>
 
 {% block extra_scripts %}
 <script>
+    let notificationCounter = 0;
     // Функция экспорта данных
     async function exportData(format, button) {
         const hours = document.getElementById('export-hours').value;
@@ -290,6 +388,9 @@
             </div>
         `;
         button.disabled = true;
+        const statusBox = document.getElementById('export-status');
+        statusBox.textContent = `Статус экспорта: подготовка ${format.toUpperCase()}...`;
+        statusBox.className = 'text-xs opacity-90 p-3 bg-blue-500/10 rounded-lg border border-blue-500/30';
         
         // Формируем URL для экспорта
         let exportUrl;
@@ -321,6 +422,9 @@
             }
 
             const blob = await response.blob();
+            if (!blob || blob.size === 0) {
+                throw new Error('Сервер вернул пустой файл');
+            }
             const contentDisposition = response.headers.get('Content-Disposition') || '';
             const fileNameMatch = contentDisposition.match(/filename="?([^"]+)"?/i);
             const fileName = fileNameMatch ? fileNameMatch[1] : `airtrace_ru_export_${hours}h.${format}`;
@@ -335,8 +439,12 @@
             URL.revokeObjectURL(downloadUrl);
 
             showNotification(`Файл ${fileName} успешно скачан`, 'success');
+            statusBox.textContent = `Статус экспорта: завершено (${fileName}).`;
+            statusBox.className = 'text-xs opacity-90 p-3 bg-green-500/10 rounded-lg border border-green-500/30';
         } catch (error) {
             showNotification(`Не удалось выполнить экспорт: ${error.message}`, 'error');
+            statusBox.textContent = `Статус экспорта: ошибка — ${error.message}`;
+            statusBox.className = 'text-xs opacity-90 p-3 bg-red-500/10 rounded-lg border border-red-500/30';
         } finally {
             button.innerHTML = originalContent;
             button.disabled = false;
@@ -345,6 +453,10 @@
     
     // Функция показа уведомлений
     function showNotification(message, type = 'info') {
+        const liveRegion = document.getElementById('notification-live');
+        if (liveRegion) {
+            liveRegion.textContent = message;
+        }
         const notification = document.createElement('div');
         const colors = {
             success: 'bg-green-500/20 border-green-500/50 text-green-400',
@@ -352,7 +464,11 @@
             info: 'bg-blue-500/20 border-blue-500/50 text-blue-400'
         };
         
+        notificationCounter += 1;
         notification.className = `fixed top-4 right-4 ${colors[type]} border rounded-xl px-4 py-3 text-sm z-50 max-w-sm`;
+        notification.setAttribute('role', 'status');
+        notification.setAttribute('aria-live', 'polite');
+        notification.setAttribute('id', `notification-${notificationCounter}`);
         notification.innerHTML = `
             <div class="flex items-center gap-2">
                 <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info'}" class="w-4 h-4"></i>
@@ -381,12 +497,15 @@
         document.querySelectorAll('[id^="period-"]').forEach(btn => {
             btn.classList.remove('bg-blue-500/30', 'border-blue-500/50');
             btn.classList.add('bg-white/10', 'border-white/20', 'hover:bg-white/20');
+            btn.setAttribute('aria-pressed', 'false');
         });
         document.getElementById(`period-${hours}`).classList.add('bg-blue-500/30', 'border-blue-500/50');
         document.getElementById(`period-${hours}`).classList.remove('bg-white/10', 'border-white/20', 'hover:bg-white/20');
+        document.getElementById(`period-${hours}`).setAttribute('aria-pressed', 'true');
         
         // Показываем индикатор загрузки
         const container = document.getElementById('timeseries-data');
+        container.setAttribute('aria-busy', 'true');
         container.innerHTML = `
             <div class="flex items-center justify-center py-8">
                 <div class="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3"></div>
@@ -413,17 +532,17 @@
             }
             
             displayTimeSeriesData(data);
+            container.setAttribute('aria-busy', 'false');
             
         } catch (error) {
+            container.setAttribute('aria-busy', 'false');
             container.innerHTML = `
                 <div class="py-8 text-red-400">
                     <div class="flex items-center justify-center mb-2">
                         <i data-lucide="alert-circle" class="w-4 h-4 mr-2"></i>
                         <span class="text-sm">Ошибка загрузки: ${error.message}</span>
                     </div>
-                    <p class="text-center text-xs opacity-80">
-                        Проверьте доступность backend API на <code>http://localhost:8000/health</code> и попробуйте снова.
-                    </p>
+                    <p class="text-center text-xs opacity-80">Попробуйте уменьшить горизонт или обновить страницу.</p>
                 </div>
             `;
             
@@ -546,6 +665,72 @@
         
         container.innerHTML = html;
     }
+
+    async function loadHistoryData(period) {
+        const cityKey = '{{ city_key }}';
+        document.querySelectorAll('[id^="history-"]').forEach(btn => {
+            btn.classList.remove('bg-orange-500/30', 'border-orange-500/50');
+            btn.classList.add('bg-white/10', 'border-white/20', 'hover:bg-white/20');
+            btn.setAttribute('aria-pressed', 'false');
+        });
+        const active = document.getElementById(`history-${period}`);
+        active.classList.add('bg-orange-500/30', 'border-orange-500/50');
+        active.classList.remove('bg-white/10', 'border-white/20', 'hover:bg-white/20');
+        active.setAttribute('aria-pressed', 'true');
+
+        const container = document.getElementById('history-data');
+        container.setAttribute('aria-busy', 'true');
+        container.innerHTML = `
+            <div class="flex items-center justify-center py-8">
+                <div class="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3"></div>
+                <span class="text-sm opacity-80">Загрузка истории (${period})...</span>
+            </div>
+        `;
+
+        try {
+            let apiUrl;
+            if (cityKey === 'custom') {
+                const lat = {{ current_city.lat }};
+                const lon = {{ current_city.lon }};
+                const cityName = encodeURIComponent('{{ current_city.name }}');
+                apiUrl = `/api/history-custom?lat=${lat}&lon=${lon}&city_name=${cityName}&period=${period}`;
+            } else {
+                apiUrl = `/api/history/${cityKey}?period=${period}`;
+            }
+
+            const response = await fetch(apiUrl);
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.detail || 'Ошибка загрузки истории');
+            }
+
+            const points = payload.data || [];
+            if (!points.length) {
+                container.innerHTML = `<div class="text-sm opacity-70 py-4">За выбранный период история недоступна. Попробуйте другой диапазон.</div>`;
+                container.setAttribute('aria-busy', 'false');
+                return;
+            }
+
+            container.innerHTML = points.slice(0, 24).map(point => {
+                const anomaly = point.anomaly_detected
+                    ? `<span class="ml-2 px-2 py-1 rounded bg-red-500/20 border border-red-500/40">аномалия: ${point.anomaly_type || 'unknown'}</span>`
+                    : '';
+                return `
+                    <div class="glass-dark rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                            <div class="text-xs opacity-60">${point.snapshot_hour_utc || point.timestamp}</div>
+                            <div class="text-sm font-semibold">AQI ${point.aqi} · ${(point.metadata && point.metadata.data_source) || point.data_source || 'history'} · ${(point.metadata && point.metadata.freshness) || point.freshness || 'n/a'}</div>
+                        </div>
+                        <div class="text-xs opacity-80">confidence: ${((point.metadata && point.metadata.confidence) ?? point.confidence ?? 0).toFixed(2)} ${anomaly}</div>
+                    </div>
+                `;
+            }).join('');
+            container.setAttribute('aria-busy', 'false');
+        } catch (error) {
+            container.innerHTML = `<div class="text-sm text-red-300 py-4">Ошибка истории: ${error.message}. Проверьте backend /history и повторите попытку.</div>`;
+            container.setAttribute('aria-busy', 'false');
+        }
+    }
     
     // Автообновление каждые 5 минут (отключено при экспорте)
     let autoRefreshTimer = setTimeout(function() {
@@ -561,9 +746,11 @@
     document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
             loadTimeSeriesData(24);
+            loadHistoryData('24h');
         }, 1000);
     });
 </script>
+<div id="notification-live" class="sr-only" aria-live="polite"></div>
 {% endblock %}
 
 {% endblock %}

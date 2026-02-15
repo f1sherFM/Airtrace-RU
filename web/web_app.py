@@ -71,6 +71,30 @@ class AirQualityService:
             return response.json()
         except:
             return []  # Прогноз не критичен
+
+    async def get_history_data(
+        self,
+        *,
+        city_key: str = "",
+        lat: float = 0.0,
+        lon: float = 0.0,
+        range_preset: str = "24h",
+        page_size: int = 48,
+    ) -> Dict[str, Any]:
+        """Получение исторических данных качества воздуха из backend history API."""
+        try:
+            params: Dict[str, Any] = {"range": range_preset, "page": 1, "page_size": page_size}
+            if city_key:
+                params["city"] = city_key
+            else:
+                params["lat"] = lat
+                params["lon"] = lon
+
+            response = await self.client.get(f"{API_BASE_URL}/history", params=params)
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return {"items": [], "total": 0, "range": range_preset}
     
     async def get_time_series_data(self, lat: float, lon: float, hours: int = 24) -> List[Dict[str, Any]]:
         """Получение реальных почасовых данных на основе прогноза без симуляции"""
@@ -158,6 +182,71 @@ def get_nmu_config(risk: str) -> Dict[str, str]:
     }
     return configs.get(risk, configs["low"])
 
+
+def get_action_plan(aqi_value: int, nmu_risk: str) -> Dict[str, Any]:
+    """Action-oriented recommendations by risk level and sensitivity profile."""
+    risk = (nmu_risk or "low").lower()
+    if aqi_value >= 200 or risk == "critical":
+        risk = "critical"
+    elif aqi_value >= 150 or risk == "high":
+        risk = "high"
+    elif aqi_value >= 100 or risk == "medium":
+        risk = "medium"
+    else:
+        risk = "low"
+
+    plans = {
+        "low": {
+            "title": "Что делать сейчас: Низкий риск",
+            "color": "green",
+            "general": [
+                "Обычная активность на улице допустима.",
+                "Проветривание помещений можно делать в стандартном режиме.",
+            ],
+            "sensitive": [
+                "При симптомах (кашель, раздражение) сократите прогулки.",
+                "Держите базовые лекарства при себе, если есть хронические заболевания.",
+            ],
+        },
+        "medium": {
+            "title": "Что делать сейчас: Умеренный риск",
+            "color": "yellow",
+            "general": [
+                "Уменьшите интенсивные тренировки на открытом воздухе.",
+                "Планируйте прогулки в часы с более чистым воздухом.",
+            ],
+            "sensitive": [
+                "Сократите длительное пребывание на улице.",
+                "Используйте маску/респиратор при длительных выходах.",
+            ],
+        },
+        "high": {
+            "title": "Что делать сейчас: Высокий риск",
+            "color": "orange",
+            "general": [
+                "Избегайте длительных нагрузок на улице.",
+                "Закрывайте окна на период пикового загрязнения.",
+            ],
+            "sensitive": [
+                "По возможности оставайтесь в помещении.",
+                "Используйте очиститель воздуха и контролируйте симптомы.",
+            ],
+        },
+        "critical": {
+            "title": "Что делать сейчас: Критический риск",
+            "color": "red",
+            "general": [
+                "Отложите прогулки и физическую активность на улице.",
+                "Максимально ограничьте приток наружного воздуха.",
+            ],
+            "sensitive": [
+                "Оставайтесь в помещении, выход только при необходимости.",
+                "При ухудшении состояния обращайтесь за медицинской помощью.",
+            ],
+        },
+    }
+    return plans[risk]
+
 def prepare_export_data(time_series_data: List[Dict[str, Any]], city_name: str) -> List[Dict[str, Any]]:
     """Подготовка данных для экспорта"""
     export_data = []
@@ -226,6 +315,11 @@ async def city_data(request: Request, city_key: str):
         
         # Получаем прогноз
         forecast_data = await air_service.get_forecast_data(city["lat"], city["lon"])
+        history_data = await air_service.get_history_data(
+            city_key=city_key,
+            range_preset="24h",
+            page_size=48
+        )
         
         # Обрабатываем прогноз (первые 8 часов)
         forecast_hours = forecast_data[:8] if forecast_data else []
@@ -238,8 +332,10 @@ async def city_data(request: Request, city_key: str):
             "city_key": city_key,
             "data": current_data,
             "forecast": forecast_hours,
+            "history": history_data.get("items", [])[:12],
             "aqi_class": get_aqi_class(current_data["aqi"]["value"]),
             "nmu_config": get_nmu_config(current_data["nmu_risk"]),
+            "action_plan": get_action_plan(current_data["aqi"]["value"], current_data.get("nmu_risk", "low")),
             "format_time": format_time,
             "api_status": "healthy",
             "title": f"AirTrace RU — {city['name']}"
@@ -292,6 +388,12 @@ async def custom_city_data(request: Request, lat: float = Form(...), lon: float 
         
         # Получаем прогноз
         forecast_data = await air_service.get_forecast_data(lat, lon)
+        history_data = await air_service.get_history_data(
+            lat=lat,
+            lon=lon,
+            range_preset="24h",
+            page_size=48
+        )
         
         # Обрабатываем прогноз (первые 8 часов)
         forecast_hours = forecast_data[:8] if forecast_data else []
@@ -304,8 +406,10 @@ async def custom_city_data(request: Request, lat: float = Form(...), lon: float 
             "city_key": "custom",
             "data": current_data,
             "forecast": forecast_hours,
+            "history": history_data.get("items", [])[:12],
             "aqi_class": get_aqi_class(current_data["aqi"]["value"]),
             "nmu_config": get_nmu_config(current_data["nmu_risk"]),
+            "action_plan": get_action_plan(current_data["aqi"]["value"], current_data.get("nmu_risk", "low")),
             "format_time": format_time,
             "api_status": "healthy",
             "title": f"AirTrace RU — {custom_city['name']}",
@@ -382,6 +486,35 @@ async def get_timeseries_data_api(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении данных: {str(e)}")
 
+
+@app.get("/api/history/{city_key}")
+async def get_history_data_api(
+    city_key: str,
+    period: str = Query("24h", pattern="^(24h|7d|30d)$")
+):
+    """History API для UI, строго отделенный от forecast."""
+    if city_key not in CITIES:
+        raise HTTPException(status_code=404, detail="Город не найден")
+
+    city = CITIES[city_key]
+    try:
+        data = await air_service.get_history_data(
+            city_key=city_key,
+            lat=city["lat"],
+            lon=city["lon"],
+            range_preset=period,
+            page_size=200,
+        )
+        return {
+            "city": city["name"],
+            "source": "history",
+            "range": period,
+            "data_points": len(data.get("items", [])),
+            "data": data.get("items", []),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении истории: {str(e)}")
+
 @app.get("/api/historical-custom")
 @app.get("/api/timeseries-custom")
 async def get_timeseries_custom_data_api(
@@ -413,6 +546,33 @@ async def get_timeseries_custom_data_api(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при получении данных: {str(e)}")
+
+
+@app.get("/api/history-custom")
+async def get_history_custom_data_api(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    city_name: str = Query("Custom Location"),
+    period: str = Query("24h", pattern="^(24h|7d|30d)$")
+):
+    """History API для произвольных координат."""
+    try:
+        data = await air_service.get_history_data(
+            lat=lat,
+            lon=lon,
+            range_preset=period,
+            page_size=200,
+        )
+        return {
+            "city": city_name,
+            "coordinates": {"lat": lat, "lon": lon},
+            "source": "history",
+            "range": period,
+            "data_points": len(data.get("items", [])),
+            "data": data.get("items", []),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при получении истории: {str(e)}")
 
 @app.get("/export/{city_key}")
 async def export_city_data(
