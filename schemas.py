@@ -176,6 +176,23 @@ class WeatherInfo(BaseModel):
     location_name: Optional[str] = Field(None, description="Название местоположения")
 
 
+class ResponseMetadata(BaseModel):
+    """Единая metadata-модель происхождения и качества данных"""
+    data_source: str = Field(default="live", description="Источник данных: live/forecast/historical/fallback")
+    freshness: str = Field(default="fresh", description="Свежесть данных: fresh/stale/expired")
+    confidence: float = Field(default=0.9, ge=0.0, le=1.0, description="Уверенность в данных [0..1]")
+    confidence_explanation: Optional[str] = Field(
+        default="Calculated from source availability and fallback usage",
+        description="Краткое объяснение расчета confidence",
+    )
+    fallback_used: bool = Field(default=False, description="Использовался ли fallback-путь")
+    cache_age_seconds: Optional[int] = Field(
+        default=None,
+        ge=0,
+        description="Возраст данных в кэше в секундах (если применимо)",
+    )
+
+
 class AirQualityData(BaseModel):
     """Основная модель данных о качестве воздуха с интеграцией WeatherAPI"""
     model_config = ConfigDict(
@@ -262,6 +279,10 @@ class AirQualityData(BaseModel):
     health_warnings: List[str] = Field(
         default_factory=list,
         description="Предупреждения о здоровье на русском языке"
+    )
+    metadata: ResponseMetadata = Field(
+        default_factory=ResponseMetadata,
+        description="Унифицированная provenance metadata для всех ответов API",
     )
 
 
@@ -405,6 +426,29 @@ class HistoricalSnapshotRecord(BaseModel):
     freshness: HistoryFreshness = Field(..., description="Свежесть записи")
     confidence: float = Field(..., ge=0.0, le=1.0, description="Уверенность в данных [0..1]")
     ingested_at: datetime = Field(default_factory=get_utc_now, description="Время записи в хранилище")
+    metadata: ResponseMetadata = Field(
+        default_factory=ResponseMetadata,
+        description="Унифицированная provenance metadata для history API",
+    )
+    anomaly_detected: bool = Field(
+        default=False,
+        description="Флаг аномалии относительно локального baseline",
+    )
+    anomaly_type: Optional[str] = Field(
+        default=None,
+        description="Тип аномалии: spike/dropout",
+    )
+    anomaly_score: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        description="Нормализованная сила аномалии (чем больше, тем сильнее отклонение)",
+    )
+    anomaly_baseline_aqi: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=500.0,
+        description="Baseline AQI, относительно которого детектирована аномалия",
+    )
 
     @field_serializer("snapshot_hour_utc", "ingested_at")
     def serialize_dt(self, dt: datetime) -> str:

@@ -86,3 +86,19 @@ erDiagram
   - Use synthetic snapshots with realistic pollutant distributions.
   - Measure with warm cache and cold cache profiles.
   - Record baseline before adding `/history` APIs (Issue 1.3).
+
+## Hourly Anomaly Detection Thresholds (Issue 2.3)
+- Detection method:
+  - Local rolling baseline by median of the previous `6` hourly AQI points.
+  - For each current point, evaluate absolute and relative deviation from baseline.
+- False-positive control thresholds:
+  - `min_absolute_delta = 35 AQI`
+  - `min_relative_delta = 0.55` (55% deviation)
+- Classification:
+  - `spike` when current AQI significantly above baseline.
+  - `dropout` when current AQI significantly below baseline.
+- Returned fields in `/history`:
+  - `anomaly_detected`
+  - `anomaly_type`
+  - `anomaly_score`
+  - `anomaly_baseline_aqi`

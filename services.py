@@ -24,13 +24,15 @@ from schemas import (
     WeatherInfo,
     TemperatureData,
     WindData,
-    PressureData
+    PressureData,
+    ResponseMetadata,
 )
 from utils import AQICalculator, check_nmu_risk, is_blacksky_conditions, get_nmu_recommendations
 from cache import MultiLevelCacheManager
 from connection_pool import get_connection_pool_manager, ServiceType, APIRequest
 from weather_api_manager import weather_api_manager
 from config import config
+from confidence_scoring import ConfidenceInputs, calculate_confidence
 
 logger = logging.getLogger(__name__)
 
@@ -289,6 +291,14 @@ class AirQualityService:
             
             # Try to get weather data even if air quality data is unavailable
             weather_info = await self._get_weather_data(lat, lon)
+            confidence_score, confidence_reason = calculate_confidence(
+                ConfidenceInputs(
+                    data_source="fallback",
+                    source_available=False,
+                    cache_age_seconds=0,
+                    fallback_used=True,
+                )
+            )
             
             return AirQualityData(
                 timestamp=datetime.now(timezone.utc),
@@ -298,7 +308,15 @@ class AirQualityService:
                 weather=weather_info,
                 recommendations=recommendations,
                 nmu_risk=nmu_risk,
-                health_warnings=health_warnings
+                health_warnings=health_warnings,
+                metadata=ResponseMetadata(
+                    data_source="fallback",
+                    freshness="stale",
+                    confidence=confidence_score,
+                    confidence_explanation=confidence_reason,
+                    fallback_used=True,
+                    cache_age_seconds=0,
+                ),
             )
         
         # Валидация значений загрязнителей
@@ -327,6 +345,14 @@ class AirQualityService:
         
         # Получение данных о погоде от WeatherAPI
         weather_info = await self._get_weather_data(lat, lon)
+        confidence_score, confidence_reason = calculate_confidence(
+            ConfidenceInputs(
+                data_source="live",
+                source_available=True,
+                cache_age_seconds=0,
+                fallback_used=False,
+            )
+        )
         
         return AirQualityData(
             timestamp=datetime.now(timezone.utc),
@@ -336,7 +362,15 @@ class AirQualityService:
             weather=weather_info,
             recommendations=recommendations,
             nmu_risk=nmu_risk,
-            health_warnings=health_warnings
+            health_warnings=health_warnings,
+            metadata=ResponseMetadata(
+                data_source="live",
+                freshness="fresh",
+                confidence=confidence_score,
+                confidence_explanation=confidence_reason,
+                fallback_used=False,
+                cache_age_seconds=0,
+            ),
         )
     
     async def _process_forecast_data(self, api_data: Dict[str, Any], lat: float, lon: float) -> List[AirQualityData]:
@@ -391,6 +425,14 @@ class AirQualityService:
             recommendations = self.aqi_calculator.get_recommendations(aqi_value, category)
             nmu_risk = check_nmu_risk(pollutant_values, {})
             health_warnings = self._generate_health_warnings(aqi_value, pollutants)
+            confidence_score, confidence_reason = calculate_confidence(
+                ConfidenceInputs(
+                    data_source="forecast",
+                    source_available=True,
+                    cache_age_seconds=0,
+                    fallback_used=False,
+                )
+            )
             
             forecast_item = AirQualityData(
                 timestamp=datetime.fromisoformat(times[i].replace('Z', '+00:00')),
@@ -400,7 +442,15 @@ class AirQualityService:
                 weather=weather_info,  # Include weather data in forecast
                 recommendations=recommendations,
                 nmu_risk=nmu_risk,
-                health_warnings=health_warnings
+                health_warnings=health_warnings,
+                metadata=ResponseMetadata(
+                    data_source="forecast",
+                    freshness="fresh",
+                    confidence=confidence_score,
+                    confidence_explanation=confidence_reason,
+                    fallback_used=False,
+                    cache_age_seconds=0,
+                ),
             )
             
             forecast_list.append(forecast_item)

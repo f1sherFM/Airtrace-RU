@@ -52,6 +52,17 @@ def _seed_store() -> InMemoryHistoricalSnapshotStore:
     store._records["k1"] = r1
     store._records["k2"] = r2
     store._records["k3"] = r3
+    store._records["k4"] = HistoricalSnapshotRecord(
+        snapshot_hour_utc=now - timedelta(minutes=10),
+        city_code="moscow",
+        latitude=55.7558,
+        longitude=37.6176,
+        aqi=190,
+        pollutants=PollutantData(pm2_5=90.0, pm10=120.0, no2=55.0, so2=20.0, o3=120.0),
+        data_source=DataSource.LIVE,
+        freshness=HistoryFreshness.FRESH,
+        confidence=0.91,
+    )
     return store
 
 
@@ -71,6 +82,10 @@ async def test_history_contract_ranges_and_provenance_fields():
                 assert "data_source" in item
                 assert "freshness" in item
                 assert "confidence" in item
+                assert "anomaly_detected" in item
+                assert "anomaly_type" in item
+                assert "anomaly_score" in item
+                assert "anomaly_baseline_aqi" in item
 
 
 @pytest.mark.asyncio
@@ -83,7 +98,7 @@ async def test_history_contract_pagination():
         payload = response.json()
         assert payload["page"] == 1
         assert payload["page_size"] == 1
-        assert payload["total"] == 2
+        assert payload["total"] == 3
         assert len(payload["items"]) == 1
 
 
@@ -94,3 +109,14 @@ async def test_history_contract_invalid_partial_coordinates():
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.get("/history?range=24h&lat=55.7")
         assert response.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_history_contract_anomaly_spike_flag_present():
+    main.history_snapshot_store = _seed_store()
+    transport = httpx.ASGITransport(app=main.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/history?range=24h&city=moscow&page=1&page_size=5")
+        assert response.status_code == 200
+        payload = response.json()
+        assert any(item.get("anomaly_detected") for item in payload["items"])

@@ -16,7 +16,8 @@ from schemas import (
     TemperatureData,
     WindData,
     PressureData,
-    LocationInfo
+    LocationInfo,
+    ResponseMetadata,
 )
 from services import AirQualityService
 from weather_api_manager import weather_api_manager
@@ -96,7 +97,8 @@ class UnifiedWeatherService:
             weather=weather_info,
             recommendations=air_quality_data.recommendations,
             nmu_risk=air_quality_data.nmu_risk,
-            health_warnings=air_quality_data.health_warnings
+            health_warnings=air_quality_data.health_warnings,
+            metadata=ResponseMetadata(**air_quality_data.metadata.model_dump()),
         )
         
         # Cache the combined result
@@ -146,7 +148,8 @@ class UnifiedWeatherService:
                 weather=weather_info,
                 recommendations=forecast_item.recommendations,
                 nmu_risk=forecast_item.nmu_risk,
-                health_warnings=forecast_item.health_warnings
+                health_warnings=forecast_item.health_warnings,
+                metadata=ResponseMetadata(**forecast_item.metadata.model_dump()),
             )
             enhanced_forecast.append(enhanced_item)
         
