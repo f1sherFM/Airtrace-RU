@@ -43,7 +43,8 @@ class AirQualityService:
     """Сервис для работы с API качества воздуха"""
     
     def __init__(self):
-        self.client = httpx.AsyncClient(timeout=30.0)
+        # Avoid proxy env influence for local backend calls (127.0.0.1:8000).
+        self.client = httpx.AsyncClient(timeout=30.0, trust_env=False)
     
     async def get_current_data(self, lat: float, lon: float) -> Dict[str, Any]:
         """Получение текущих данных о качестве воздуха"""

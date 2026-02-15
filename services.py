@@ -99,7 +99,9 @@ class AirQualityService:
         if not self.use_connection_pool:
             self.client = httpx.AsyncClient(
                 timeout=30.0,
-                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10)
+                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+                # Ignore system proxy env vars for service-to-service API calls.
+                trust_env=False
             )
         else:
             self.client = None

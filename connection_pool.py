@@ -327,7 +327,9 @@ class ConnectionPool:
                 read=config.read_timeout,
                 write=config.write_timeout,
                 pool=config.pool_timeout
-            )
+            ),
+            # Prevent invalid system proxy env values from breaking all pool requests.
+            trust_env=False
         )
         
         # Pool state
@@ -718,7 +720,8 @@ class ConnectionPool:
                     read=self.config.read_timeout,
                     write=self.config.write_timeout,
                     pool=self.config.pool_timeout
-                )
+                ),
+                trust_env=False
             )
             
             self.connection_created_time = time.time()
