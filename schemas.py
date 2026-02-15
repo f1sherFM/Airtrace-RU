@@ -304,7 +304,7 @@ class HealthCheckResponse(BaseModel):
     
     status: str = Field(
         ..., 
-        description="Общий статус сервиса (healthy/unhealthy)"
+        description="Общий статус сервиса (healthy/degraded/unhealthy)"
     )
     timestamp: datetime = Field(
         default_factory=get_utc_now,
@@ -316,7 +316,7 @@ class HealthCheckResponse(BaseModel):
         return dt.isoformat()
     services: Dict[str, Any] = Field(
         ...,
-        description="Статус отдельных компонентов системы (строки и/или вложенные объекты)"
+        description="Статус компонентов системы в нормализованном формате"
     )
 
 

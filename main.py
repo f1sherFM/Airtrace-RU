@@ -310,6 +310,30 @@ def get_air_quality_service() -> AirQualityService:
     return air_quality_service
 
 
+def _normalize_health_status(value: str) -> str:
+    normalized = (value or "").strip().lower()
+    if normalized in {"healthy", "ok", "up", "enabled", "active"}:
+        return "healthy"
+    if normalized in {"disabled"}:
+        return "degraded"
+    if normalized in {"unhealthy", "down", "error", "failed"}:
+        return "unhealthy"
+    if normalized in {"degraded", "warning", "unknown"}:
+        return "degraded"
+    return "degraded"
+
+
+def _normalize_health_component(value):
+    if isinstance(value, dict):
+        raw_status = value.get("status", "degraded")
+        normalized_status = _normalize_health_status(str(raw_status))
+        details = {k: v for k, v in value.items() if k != "status"}
+        return {"status": normalized_status, "details": details}
+    if isinstance(value, str):
+        return {"status": _normalize_health_status(value), "details": {}}
+    return {"status": "degraded", "details": {"raw": value}}
+
+
 @app.get("/", include_in_schema=False)
 async def root():
     """Корневой эндпоинт с информацией об API"""
@@ -452,6 +476,15 @@ async def get_current_air_quality(
         return AirQualityData(**minimal_data)
 
 
+@app.get("/v2/current", response_model=AirQualityData)
+async def get_current_air_quality_v2(
+    lat: float = Query(..., ge=-90, le=90, description="Широта"),
+    lon: float = Query(..., ge=-180, le=180, description="Долгота"),
+):
+    """v2 version of current endpoint."""
+    return await get_current_air_quality(lat=lat, lon=lon)
+
+
 @app.get("/weather/forecast", response_model=list[AirQualityData])
 async def get_forecast_air_quality(
     lat: float = Query(..., ge=-90, le=90, description="Широта"),
@@ -577,6 +610,15 @@ async def get_forecast_air_quality(
         return minimal_data
 
 
+@app.get("/v2/forecast", response_model=list[AirQualityData])
+async def get_forecast_air_quality_v2(
+    lat: float = Query(..., ge=-90, le=90, description="Широта"),
+    lon: float = Query(..., ge=-180, le=180, description="Долгота"),
+):
+    """v2 version of forecast endpoint."""
+    return await get_forecast_air_quality(lat=lat, lon=lon)
+
+
 @app.get("/history", response_model=HistoryQueryResponse)
 async def get_history(
     range: HistoryRange = Query(HistoryRange.LAST_24H, description="Диапазон: 24h, 7d или 30d"),
@@ -624,6 +666,19 @@ async def get_history(
         total=query_result["total"],
         items=query_result["items"],
     )
+
+
+@app.get("/v2/history", response_model=HistoryQueryResponse)
+async def get_history_v2(
+    range: HistoryRange = Query(HistoryRange.LAST_24H, description="Диапазон: 24h, 7d или 30d"),
+    page: int = Query(1, ge=1, description="Номер страницы (с 1)"),
+    page_size: int = Query(50, ge=1, le=500, description="Размер страницы"),
+    city: Optional[str] = Query(None, min_length=2, max_length=64, description="Код города (например, moscow)"),
+    lat: Optional[float] = Query(None, ge=-90, le=90, description="Широта для custom history"),
+    lon: Optional[float] = Query(None, ge=-180, le=180, description="Долгота для custom history"),
+):
+    """v2 version of history endpoint."""
+    return await get_history(range=range, page=page, page_size=page_size, city=city, lat=lat, lon=lon)
 
 
 async def _fetch_history_records_for_export(
@@ -919,9 +974,24 @@ async def health_check():
         
         logger.info(f"Health check completed - Overall status: {overall_status}")
         
+        normalized_services = {name: _normalize_health_component(value) for name, value in services_status.items()}
+        overall_from_components = "healthy"
+        for comp in normalized_services.values():
+            st = comp["status"]
+            if st == "unhealthy":
+                overall_from_components = "unhealthy"
+                break
+            if st == "degraded":
+                overall_from_components = "degraded"
+        normalized_overall = _normalize_health_status(overall_status)
+        if overall_from_components == "unhealthy":
+            normalized_overall = "unhealthy"
+        elif overall_from_components == "degraded" and normalized_overall == "healthy":
+            normalized_overall = "degraded"
+
         return HealthCheckResponse(
-            status=overall_status,
-            services=services_status
+            status=normalized_overall,
+            services=normalized_services
         )
         
     except Exception as e:
@@ -929,16 +999,22 @@ async def health_check():
         return HealthCheckResponse(
             status="unhealthy",
             services={
-                "api": "healthy",
-                "external_api": "unknown",
-                "cache": "unknown",
-                "aqi_calculator": "unknown",
-                "privacy_middleware": "unknown",
-                "nmu_detector": "unknown",
-                "graceful_degradation": "unknown",
-                "fallback_capabilities": "unknown"
+                "api": {"status": "healthy", "details": {}},
+                "external_api": {"status": "degraded", "details": {"reason": "unknown"}},
+                "cache": {"status": "degraded", "details": {"reason": "unknown"}},
+                "aqi_calculator": {"status": "degraded", "details": {"reason": "unknown"}},
+                "privacy_middleware": {"status": "degraded", "details": {"reason": "unknown"}},
+                "nmu_detector": {"status": "degraded", "details": {"reason": "unknown"}},
+                "graceful_degradation": {"status": "degraded", "details": {"reason": "unknown"}},
+                "fallback_capabilities": {"status": "degraded", "details": {"reason": "unknown"}}
             }
         )
+
+
+@app.get("/v2/health", response_model=HealthCheckResponse)
+async def health_check_v2():
+    """v2 normalized health endpoint."""
+    return await health_check()
 
 
 @app.exception_handler(HTTPException)
