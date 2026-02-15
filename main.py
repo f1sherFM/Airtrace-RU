@@ -15,7 +15,7 @@ Privacy-first асинхронный REST API сервис для монитор
 
 from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from contextlib import asynccontextmanager
 from typing import Optional
 from datetime import datetime, timezone, timedelta
@@ -23,12 +23,18 @@ import asyncio
 import logging
 import uvicorn
 import httpx
+import os
+import csv
+import io
+import json
 
 from schemas import (
     AirQualityData,
     HealthCheckResponse,
     ErrorResponse,
-    CoordinatesRequest
+    CoordinatesRequest,
+    HistoryQueryResponse,
+    HistoryRange,
 )
 from services import AirQualityService
 from unified_weather_service import unified_weather_service
@@ -40,6 +46,11 @@ from rate_limit_monitoring import get_rate_limit_monitor, setup_rate_limit_loggi
 from connection_pool import get_connection_pool_manager
 from graceful_degradation import get_graceful_degradation_manager
 from config import config
+from history_ingestion import (
+    HistoryIngestionPipeline,
+    InMemoryHistoricalSnapshotStore,
+    JsonlDeadLetterSink,
+)
 
 # Настройка privacy-aware логирования
 setup_privacy_logging()
@@ -47,6 +58,8 @@ logger = logging.getLogger(__name__)
 
 # Глобальный экземпляр сервиса для управления жизненным циклом
 air_quality_service: Optional[AirQualityService] = None
+history_ingestion_pipeline: Optional[HistoryIngestionPipeline] = None
+history_snapshot_store: Optional[InMemoryHistoricalSnapshotStore] = None
 
 
 @asynccontextmanager
@@ -56,7 +69,7 @@ async def lifespan(app: FastAPI):
     
     Инициализирует и очищает ресурсы при запуске и остановке приложения.
     """
-    global air_quality_service
+    global air_quality_service, history_ingestion_pipeline, history_snapshot_store
     
     # Startup
     logger.info("Starting AirTrace RU Backend...")
@@ -117,6 +130,21 @@ async def lifespan(app: FastAPI):
     # Запуск фоновых задач
     cleanup_task = asyncio.create_task(periodic_cleanup())
     logger.info("Background cleanup task started")
+
+    # Historical ingestion pipeline (Issue 1.2)
+    history_store = InMemoryHistoricalSnapshotStore()
+    history_snapshot_store = history_store
+    dead_letter_sink = JsonlDeadLetterSink("logs/history_dead_letter.jsonl")
+    history_ingestion_pipeline = HistoryIngestionPipeline(
+        fetch_current_data=unified_weather_service.get_current_combined_data,
+        snapshot_store=history_store,
+        dead_letter_sink=dead_letter_sink,
+        max_retries=int(os.getenv("HISTORY_INGEST_MAX_RETRIES", "3")),
+        retry_delay_seconds=float(os.getenv("HISTORY_INGEST_RETRY_DELAY_SECONDS", "0.5")),
+    )
+    history_interval = int(os.getenv("HISTORY_INGEST_INTERVAL_SECONDS", "3600"))
+    history_task = asyncio.create_task(periodic_history_ingestion(history_interval))
+    logger.info("Background historical ingestion task started")
     
     yield
     
@@ -125,8 +153,13 @@ async def lifespan(app: FastAPI):
     
     # Остановка фоновых задач
     cleanup_task.cancel()
+    history_task.cancel()
     try:
         await cleanup_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await history_task
     except asyncio.CancelledError:
         pass
     
@@ -191,6 +224,33 @@ async def periodic_cleanup():
             break
         except Exception as e:
             logger.error(f"Error during periodic cleanup: {e}")
+
+
+async def periodic_history_ingestion(interval_seconds: int = 3600):
+    """Периодическая загрузка исторических часовых срезов."""
+    global history_ingestion_pipeline
+
+    run_on_startup = os.getenv("HISTORY_INGEST_RUN_ON_STARTUP", "true").lower() == "true"
+
+    # Run one ingestion cycle at startup to seed history.
+    if run_on_startup and history_ingestion_pipeline is not None:
+        try:
+            result = await history_ingestion_pipeline.ingest_once()
+            logger.info("Initial history ingestion completed: %s", result)
+        except Exception as e:
+            logger.error(f"Initial history ingestion failed: {e}")
+
+    while True:
+        try:
+            await asyncio.sleep(interval_seconds)
+            if history_ingestion_pipeline is None:
+                continue
+            result = await history_ingestion_pipeline.ingest_once()
+            logger.info("Periodic history ingestion completed: %s", result)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"Error during periodic history ingestion: {e}")
 
 
 # Создание FastAPI приложения с управлением жизненным циклом
@@ -283,6 +343,9 @@ async def get_current_air_quality(
     Requirements: 1.1, 1.2, 1.4, 1.5, 9.2, 9.3, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6
     """
     try:
+        if history_ingestion_pipeline is not None:
+            history_ingestion_pipeline.register_custom_coordinates(lat, lon)
+
         # Дополнительная валидация координат для российской территории
         if not validate_coordinates(lat, lon):
             logger.warning(f"Coordinates outside Russian territory requested")
@@ -405,6 +468,9 @@ async def get_forecast_air_quality(
     Requirements: 1.1, 1.2, 1.4, 1.5, 9.2, 9.3, 11.4, 11.5, 11.6
     """
     try:
+        if history_ingestion_pipeline is not None:
+            history_ingestion_pipeline.register_custom_coordinates(lat, lon)
+
         # Дополнительная валидация координат для российской территории
         if not validate_coordinates(lat, lon):
             logger.warning(f"Coordinates outside Russian territory requested for forecast")
@@ -509,6 +575,175 @@ async def get_forecast_air_quality(
         # Absolute final fallback
         minimal_data = await degradation_manager.get_minimal_response("forecast")
         return minimal_data
+
+
+@app.get("/history", response_model=HistoryQueryResponse)
+async def get_history(
+    range: HistoryRange = Query(HistoryRange.LAST_24H, description="Диапазон: 24h, 7d или 30d"),
+    page: int = Query(1, ge=1, description="Номер страницы (с 1)"),
+    page_size: int = Query(50, ge=1, le=500, description="Размер страницы"),
+    city: Optional[str] = Query(None, min_length=2, max_length=64, description="Код города (например, moscow)"),
+    lat: Optional[float] = Query(None, ge=-90, le=90, description="Широта для custom history"),
+    lon: Optional[float] = Query(None, ge=-180, le=180, description="Долгота для custom history"),
+):
+    """
+    Исторические данные качества воздуха с фильтрами диапазона и пагинацией.
+    """
+    global history_snapshot_store
+    if history_snapshot_store is None:
+        return HistoryQueryResponse(range=range, page=page, page_size=page_size, total=0, items=[])
+
+    if (lat is None) != (lon is None):
+        raise HTTPException(status_code=400, detail="Параметры lat и lon должны передаваться вместе")
+
+    now = datetime.now(timezone.utc)
+    if range == HistoryRange.LAST_24H:
+        delta = timedelta(hours=24)
+    elif range == HistoryRange.LAST_7D:
+        delta = timedelta(days=7)
+    else:
+        delta = timedelta(days=30)
+
+    start_utc = now - delta
+    end_utc = now
+    offset = (page - 1) * page_size
+
+    query_result = await history_snapshot_store.query_snapshots(
+        start_utc=start_utc,
+        end_utc=end_utc,
+        city_code=city,
+        lat=lat,
+        lon=lon,
+        limit=page_size,
+        offset=offset,
+    )
+    return HistoryQueryResponse(
+        range=range,
+        page=page,
+        page_size=page_size,
+        total=query_result["total"],
+        items=query_result["items"],
+    )
+
+
+async def _fetch_history_records_for_export(
+    *,
+    hours: int,
+    city: Optional[str],
+    lat: Optional[float],
+    lon: Optional[float],
+):
+    global history_snapshot_store
+    if history_snapshot_store is None:
+        return []
+
+    now = datetime.now(timezone.utc)
+    start_utc = now - timedelta(hours=hours)
+    query_result = await history_snapshot_store.query_snapshots(
+        start_utc=start_utc,
+        end_utc=now,
+        city_code=city,
+        lat=lat,
+        lon=lon,
+        limit=50000,
+        offset=0,
+    )
+    return query_result["items"]
+
+
+@app.get("/history/export/json")
+async def export_history_json(
+    hours: int = Query(24, ge=1, le=720, description="Период экспорта в часах (максимум 720 = 30 дней)"),
+    city: Optional[str] = Query(None, min_length=2, max_length=64, description="Код города (например, moscow)"),
+    lat: Optional[float] = Query(None, ge=-90, le=90, description="Широта для custom history"),
+    lon: Optional[float] = Query(None, ge=-180, le=180, description="Долгота для custom history"),
+):
+    """
+    Экспорт исторических наблюдений в JSON (реальные historical snapshots, не forecast).
+    """
+    if (lat is None) != (lon is None):
+        raise HTTPException(status_code=400, detail="Параметры lat и lon должны передаваться вместе")
+
+    records = await _fetch_history_records_for_export(hours=hours, city=city, lat=lat, lon=lon)
+    payload = [item.model_dump(mode="json") for item in records]
+
+    export_target = city if city else f"{lat}_{lon}" if lat is not None and lon is not None else "all"
+    filename = f"airtrace_history_{export_target}_{hours}h_{datetime.now().strftime('%Y%m%d_%H%M')}.json"
+    return Response(
+        content=json.dumps(payload, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "X-AirTrace-Export-Type": "historical-json",
+        },
+    )
+
+
+@app.get("/history/export/csv")
+async def export_history_csv(
+    hours: int = Query(24, ge=1, le=720, description="Период экспорта в часах (максимум 720 = 30 дней)"),
+    city: Optional[str] = Query(None, min_length=2, max_length=64, description="Код города (например, moscow)"),
+    lat: Optional[float] = Query(None, ge=-90, le=90, description="Широта для custom history"),
+    lon: Optional[float] = Query(None, ge=-180, le=180, description="Долгота для custom history"),
+):
+    """
+    Экспорт исторических наблюдений в CSV (реальные historical snapshots, не forecast).
+    """
+    if (lat is None) != (lon is None):
+        raise HTTPException(status_code=400, detail="Параметры lat и lon должны передаваться вместе")
+
+    records = await _fetch_history_records_for_export(hours=hours, city=city, lat=lat, lon=lon)
+    output = io.StringIO()
+    fieldnames = [
+        "snapshot_hour_utc",
+        "city_code",
+        "latitude",
+        "longitude",
+        "aqi",
+        "pm2_5",
+        "pm10",
+        "no2",
+        "so2",
+        "o3",
+        "data_source",
+        "freshness",
+        "confidence",
+        "ingested_at",
+    ]
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for item in records:
+        pollutants = item.pollutants.model_dump()
+        writer.writerow(
+            {
+                "snapshot_hour_utc": item.snapshot_hour_utc.isoformat(),
+                "city_code": item.city_code,
+                "latitude": item.latitude,
+                "longitude": item.longitude,
+                "aqi": item.aqi,
+                "pm2_5": pollutants.get("pm2_5"),
+                "pm10": pollutants.get("pm10"),
+                "no2": pollutants.get("no2"),
+                "so2": pollutants.get("so2"),
+                "o3": pollutants.get("o3"),
+                "data_source": item.data_source.value,
+                "freshness": item.freshness.value,
+                "confidence": item.confidence,
+                "ingested_at": item.ingested_at.isoformat(),
+            }
+        )
+
+    export_target = city if city else f"{lat}_{lon}" if lat is not None and lon is not None else "all"
+    filename = f"airtrace_history_{export_target}_{hours}h_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "X-AirTrace-Export-Type": "historical-csv",
+        },
+    )
 
 
 @app.get("/health", response_model=HealthCheckResponse)

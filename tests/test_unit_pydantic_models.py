@@ -20,7 +20,11 @@ from schemas import (
     HealthCheckResponse,
     ErrorResponse,
     OpenMeteoResponse,
-    CacheEntry
+    CacheEntry,
+    DataSource,
+    HistoryFreshness,
+    HistoricalSnapshotRecord,
+    DailyAggregateRecord,
 )
 
 
@@ -519,6 +523,75 @@ class TestCacheEntry:
         )
         
         assert entry.is_expired()  # Запись должна быть просроченной
+
+
+class TestHistoricalModels:
+    """Unit тесты для моделей исторической платформы"""
+
+    def test_historical_snapshot_record_valid(self):
+        snapshot = HistoricalSnapshotRecord(
+            snapshot_hour_utc=datetime(2026, 2, 15, 18, 0, tzinfo=timezone.utc),
+            city_code="moscow",
+            latitude=55.7558,
+            longitude=37.6176,
+            aqi=85,
+            pollutants=PollutantData(pm2_5=25.4, pm10=45.2, no2=35.1, so2=12.3, o3=85.7),
+            data_source=DataSource.LIVE,
+            freshness=HistoryFreshness.FRESH,
+            confidence=0.92,
+        )
+
+        assert snapshot.city_code == "moscow"
+        assert snapshot.data_source == DataSource.LIVE
+        assert snapshot.freshness == HistoryFreshness.FRESH
+        assert snapshot.confidence == pytest.approx(0.92)
+
+    def test_historical_snapshot_invalid_confidence(self):
+        with pytest.raises(ValidationError):
+            HistoricalSnapshotRecord(
+                snapshot_hour_utc=datetime(2026, 2, 15, 18, 0, tzinfo=timezone.utc),
+                city_code="moscow",
+                latitude=55.7558,
+                longitude=37.6176,
+                aqi=85,
+                pollutants=PollutantData(pm2_5=25.4),
+                data_source=DataSource.LIVE,
+                freshness=HistoryFreshness.FRESH,
+                confidence=1.2,
+            )
+
+    def test_daily_aggregate_record_valid(self):
+        aggregate = DailyAggregateRecord(
+            day_utc=datetime(2026, 2, 15, 0, 0, tzinfo=timezone.utc),
+            city_code="moscow",
+            latitude=55.7558,
+            longitude=37.6176,
+            aqi_min=52,
+            aqi_max=112,
+            aqi_avg=76.4,
+            sample_count=24,
+            dominant_source=DataSource.LIVE,
+            avg_confidence=0.88,
+        )
+
+        assert aggregate.sample_count == 24
+        assert aggregate.aqi_min <= aggregate.aqi_max
+        assert aggregate.dominant_source == DataSource.LIVE
+
+    def test_daily_aggregate_invalid_sample_count(self):
+        with pytest.raises(ValidationError):
+            DailyAggregateRecord(
+                day_utc=datetime(2026, 2, 15, 0, 0, tzinfo=timezone.utc),
+                city_code="moscow",
+                latitude=55.7558,
+                longitude=37.6176,
+                aqi_min=52,
+                aqi_max=112,
+                aqi_avg=76.4,
+                sample_count=25,
+                dominant_source=DataSource.LIVE,
+                avg_confidence=0.88,
+            )
 
 
 class TestModelIntegration:

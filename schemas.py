@@ -353,3 +353,130 @@ class CacheEntry(BaseModel):
         """Проверка истечения срока действия записи"""
         from datetime import timedelta
         return datetime.now(timezone.utc) > self.timestamp + timedelta(seconds=self.ttl_seconds)
+
+
+class DataSource(str, Enum):
+    """Источник данных для исторической платформы"""
+    LIVE = "live"
+    FORECAST = "forecast"
+    HISTORICAL = "historical"
+    FALLBACK = "fallback"
+
+
+class HistoryFreshness(str, Enum):
+    """Уровень свежести исторических данных"""
+    FRESH = "fresh"
+    STALE = "stale"
+    EXPIRED = "expired"
+
+
+class HistoricalSnapshotRecord(BaseModel):
+    """Каноническая запись часового среза качества воздуха"""
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "snapshot_hour_utc": "2026-02-15T18:00:00Z",
+                "city_code": "moscow",
+                "latitude": 55.7558,
+                "longitude": 37.6176,
+                "aqi": 85,
+                "pollutants": {"pm2_5": 25.4, "pm10": 45.2, "no2": 35.1, "so2": 12.3, "o3": 85.7},
+                "data_source": "live",
+                "freshness": "fresh",
+                "confidence": 0.92,
+                "ingested_at": "2026-02-15T18:03:21Z"
+            }
+        }
+    )
+
+    snapshot_hour_utc: datetime = Field(..., description="Начало часа в UTC")
+    city_code: Optional[str] = Field(
+        None,
+        min_length=2,
+        max_length=64,
+        pattern=r"^[a-z0-9_-]+$",
+        description="Канонический код города (для преднастроенных городов)"
+    )
+    latitude: float = Field(..., ge=-90, le=90, description="Широта")
+    longitude: float = Field(..., ge=-180, le=180, description="Долгота")
+    aqi: int = Field(..., ge=0, le=500, description="Индекс качества воздуха AQI")
+    pollutants: PollutantData = Field(..., description="Концентрации загрязнителей")
+    data_source: DataSource = Field(..., description="Источник данных")
+    freshness: HistoryFreshness = Field(..., description="Свежесть записи")
+    confidence: float = Field(..., ge=0.0, le=1.0, description="Уверенность в данных [0..1]")
+    ingested_at: datetime = Field(default_factory=get_utc_now, description="Время записи в хранилище")
+
+    @field_serializer("snapshot_hour_utc", "ingested_at")
+    def serialize_dt(self, dt: datetime) -> str:
+        return dt.isoformat()
+
+
+class DailyAggregateRecord(BaseModel):
+    """Агрегированная дневная запись по историческим данным"""
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "day_utc": "2026-02-15T00:00:00Z",
+                "city_code": "moscow",
+                "latitude": 55.7558,
+                "longitude": 37.6176,
+                "aqi_min": 52,
+                "aqi_max": 112,
+                "aqi_avg": 76.4,
+                "sample_count": 24,
+                "dominant_source": "live",
+                "avg_confidence": 0.88,
+                "calculated_at": "2026-02-16T00:05:00Z"
+            }
+        }
+    )
+
+    day_utc: datetime = Field(..., description="Начало суток в UTC")
+    city_code: Optional[str] = Field(
+        None,
+        min_length=2,
+        max_length=64,
+        pattern=r"^[a-z0-9_-]+$",
+        description="Канонический код города"
+    )
+    latitude: float = Field(..., ge=-90, le=90, description="Широта")
+    longitude: float = Field(..., ge=-180, le=180, description="Долгота")
+    aqi_min: int = Field(..., ge=0, le=500, description="Минимальный AQI за сутки")
+    aqi_max: int = Field(..., ge=0, le=500, description="Максимальный AQI за сутки")
+    aqi_avg: float = Field(..., ge=0, le=500, description="Средний AQI за сутки")
+    sample_count: int = Field(..., ge=1, le=24, description="Количество часовых срезов в агрегации")
+    dominant_source: DataSource = Field(..., description="Преобладающий источник данных за сутки")
+    avg_confidence: float = Field(..., ge=0.0, le=1.0, description="Средняя уверенность [0..1]")
+    calculated_at: datetime = Field(default_factory=get_utc_now, description="Время расчета агрегата")
+
+    @field_serializer("day_utc", "calculated_at")
+    def serialize_dt(self, dt: datetime) -> str:
+        return dt.isoformat()
+
+
+class HistoryRange(str, Enum):
+    """Разрешенные пресеты диапазона для history API"""
+    LAST_24H = "24h"
+    LAST_7D = "7d"
+    LAST_30D = "30d"
+
+
+class HistoryQueryResponse(BaseModel):
+    """Ответ history API с пагинацией"""
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "range": "24h",
+                "page": 1,
+                "page_size": 50,
+                "total": 3,
+                "items": [],
+            }
+        }
+    )
+
+    range: HistoryRange = Field(..., description="Примененный диапазон выборки")
+    page: int = Field(..., ge=1, description="Номер страницы (с 1)")
+    page_size: int = Field(..., ge=1, le=500, description="Размер страницы")
+    total: int = Field(..., ge=0, description="Общее число найденных записей")
+    items: List[HistoricalSnapshotRecord] = Field(default_factory=list, description="Список исторических записей")
