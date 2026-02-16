@@ -5,7 +5,7 @@ Pydantic модели для валидации данных AirTrace RU Backend
 с валидацией согласно требованиям API.
 """
 
-from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from pydantic import BaseModel, Field, ConfigDict, field_serializer, model_validator
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 from enum import Enum
@@ -281,10 +281,36 @@ class AirQualityData(BaseModel):
         default_factory=list,
         description="Предупреждения о здоровье на русском языке"
     )
+    data_source: Optional[str] = Field(
+        default=None,
+        description="Плоское зеркальное поле источника данных (для единого контракта)",
+    )
+    freshness: Optional[str] = Field(
+        default=None,
+        description="Плоское зеркальное поле свежести данных (для единого контракта)",
+    )
+    confidence: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Плоское зеркальное поле confidence [0..1] (для единого контракта)",
+    )
     metadata: ResponseMetadata = Field(
         default_factory=ResponseMetadata,
         description="Унифицированная provenance metadata для всех ответов API",
     )
+
+    @model_validator(mode="after")
+    def _sync_flat_provenance(self):
+        """
+        Keep flat provenance fields aligned with canonical metadata.
+
+        This avoids endpoint-specific schema differences for current/forecast/history/export.
+        """
+        self.data_source = self.metadata.data_source
+        self.freshness = self.metadata.freshness
+        self.confidence = self.metadata.confidence
+        return self
 
 
 class HealthCheckResponse(BaseModel):
@@ -454,6 +480,24 @@ class HistoricalSnapshotRecord(BaseModel):
     @field_serializer("snapshot_hour_utc", "ingested_at")
     def serialize_dt(self, dt: datetime) -> str:
         return dt.isoformat()
+
+    @model_validator(mode="after")
+    def _sync_metadata_with_provenance(self):
+        """
+        Keep nested metadata aligned with canonical provenance fields.
+
+        Historical records are authoritative in top-level fields
+        (data_source/freshness/confidence), so metadata should mirror them.
+        """
+        self.metadata = ResponseMetadata(
+            data_source=self.data_source.value,
+            freshness=self.freshness.value,
+            confidence=self.confidence,
+            confidence_explanation=self.metadata.confidence_explanation,
+            fallback_used=self.metadata.fallback_used,
+            cache_age_seconds=self.metadata.cache_age_seconds,
+        )
+        return self
 
 
 class DailyAggregateRecord(BaseModel):

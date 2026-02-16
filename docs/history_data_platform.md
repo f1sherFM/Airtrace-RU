@@ -4,6 +4,8 @@
 - Hourly canonical snapshots for city and custom coordinate requests.
 - Daily aggregates derived from hourly snapshots.
 - Provenance fields: `data_source`, `freshness`, `confidence`.
+- Unified response contract: provenance is available both as flat fields and in nested `metadata`.
+- Export parity: CSV/JSON expose `confidence_explanation`, `fallback_used`, `cache_age_seconds` alongside core provenance fields.
 
 ## ER Diagram
 ```mermaid

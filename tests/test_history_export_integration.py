@@ -45,6 +45,10 @@ async def test_history_export_json_response_headers_and_payload():
         assert payload[0]["data_source"] == "live"
         assert "freshness" in payload[0]
         assert "confidence" in payload[0]
+        assert "metadata" in payload[0]
+        assert payload[0]["metadata"]["data_source"] == payload[0]["data_source"]
+        assert payload[0]["metadata"]["freshness"] == payload[0]["freshness"]
+        assert payload[0]["metadata"]["confidence"] == payload[0]["confidence"]
 
 
 @pytest.mark.asyncio
@@ -59,6 +63,9 @@ async def test_history_export_csv_response_headers_and_payload():
         assert response.headers.get("x-airtrace-export-type") == "historical-csv"
         body = response.text
         assert "snapshot_hour_utc,city_code,latitude,longitude,aqi" in body
+        assert "confidence_explanation" in body
+        assert "fallback_used" in body
+        assert "cache_age_seconds" in body
         assert "live" in body
 
 

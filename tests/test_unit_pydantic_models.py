@@ -560,6 +560,23 @@ class TestHistoricalModels:
                 confidence=1.2,
             )
 
+    def test_historical_snapshot_metadata_synced_with_provenance(self):
+        snapshot = HistoricalSnapshotRecord(
+            snapshot_hour_utc=datetime(2026, 2, 15, 18, 0, tzinfo=timezone.utc),
+            city_code="moscow",
+            latitude=55.7558,
+            longitude=37.6176,
+            aqi=85,
+            pollutants=PollutantData(pm2_5=25.4),
+            data_source=DataSource.FALLBACK,
+            freshness=HistoryFreshness.EXPIRED,
+            confidence=0.51,
+        )
+
+        assert snapshot.metadata.data_source == "fallback"
+        assert snapshot.metadata.freshness == "expired"
+        assert snapshot.metadata.confidence == pytest.approx(0.51)
+
     def test_daily_aggregate_record_valid(self):
         aggregate = DailyAggregateRecord(
             day_utc=datetime(2026, 2, 15, 0, 0, tzinfo=timezone.utc),

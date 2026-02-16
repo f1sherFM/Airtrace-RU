@@ -988,6 +988,9 @@ async def export_history_csv(
         "data_source",
         "freshness",
         "confidence",
+        "confidence_explanation",
+        "fallback_used",
+        "cache_age_seconds",
         "ingested_at",
     ]
     writer = csv.DictWriter(output, fieldnames=fieldnames)
@@ -1010,6 +1013,9 @@ async def export_history_csv(
                 "data_source": item.data_source.value,
                 "freshness": item.freshness.value,
                 "confidence": item.confidence,
+                "confidence_explanation": item.metadata.confidence_explanation,
+                "fallback_used": item.metadata.fallback_used,
+                "cache_age_seconds": item.metadata.cache_age_seconds,
                 "ingested_at": item.ingested_at.isoformat(),
             }
         )

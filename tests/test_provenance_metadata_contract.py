@@ -43,10 +43,16 @@ async def test_current_and_forecast_include_unified_metadata():
             forecast_payload = forecast.json()[0]
 
             for payload in (current_payload, forecast_payload):
+                assert "data_source" in payload
+                assert "freshness" in payload
+                assert "confidence" in payload
                 assert "metadata" in payload
                 assert "data_source" in payload["metadata"]
                 assert "freshness" in payload["metadata"]
                 assert "confidence" in payload["metadata"]
+                assert payload["data_source"] == payload["metadata"]["data_source"]
+                assert payload["freshness"] == payload["metadata"]["freshness"]
+                assert payload["confidence"] == payload["metadata"]["confidence"]
 
 
 @pytest.mark.asyncio
@@ -72,7 +78,13 @@ async def test_history_include_unified_metadata():
         payload = response.json()
         assert "items" in payload and len(payload["items"]) == 1
         item = payload["items"][0]
+        assert "data_source" in item
+        assert "freshness" in item
+        assert "confidence" in item
         assert "metadata" in item
         assert "data_source" in item["metadata"]
         assert "freshness" in item["metadata"]
         assert "confidence" in item["metadata"]
+        assert item["data_source"] == item["metadata"]["data_source"]
+        assert item["freshness"] == item["metadata"]["freshness"]
+        assert item["confidence"] == item["metadata"]["confidence"]
