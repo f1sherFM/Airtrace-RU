@@ -165,6 +165,7 @@ curl "http://localhost:8000/v2/health"
 - `v1` и `v2` маршруты работают параллельно для backward compatibility.
 - Для новых интеграций используйте `/v2/*`.
 - Матрица совместимости и deprecation notes: `docs/api_v2_compatibility.md`.
+- UX smoke checklist для дашборда Now/Forecast/History: `docs/ux_smoke_checklist.md`.
 
 ### Мониторинг производительности
 ```bash

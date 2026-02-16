@@ -8,9 +8,32 @@
 
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-3 glass-enhanced rounded-3xl p-5 border border-white/20">
+        <h2 class="text-sm font-semibold uppercase tracking-[0.2em] opacity-70 mb-3">Режимы данных</h2>
+        <p class="text-sm opacity-85 mb-4">
+            Дашборд разделен на три независимых режима: текущая ситуация (Now), прогноз (Forecast) и фактическая история (History).
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <a href="#now-section" class="rounded-2xl p-4 bg-emerald-500/15 border border-emerald-400/40 hover:bg-emerald-500/25 transition-colors">
+                <div class="text-xs uppercase tracking-wide opacity-70 mb-1">Now</div>
+                <div class="font-semibold">Текущие показатели AQI</div>
+                <div class="text-xs opacity-70 mt-1">Оперативная оценка и рекомендации.</div>
+            </a>
+            <a href="#forecast-section" class="rounded-2xl p-4 bg-blue-500/15 border border-blue-400/40 hover:bg-blue-500/25 transition-colors">
+                <div class="text-xs uppercase tracking-wide opacity-70 mb-1">Forecast</div>
+                <div class="font-semibold">Почасовой прогноз</div>
+                <div class="text-xs opacity-70 mt-1">Ожидаемая динамика на выбранный горизонт.</div>
+            </a>
+            <a href="#history-section" class="rounded-2xl p-4 bg-orange-500/15 border border-orange-400/40 hover:bg-orange-500/25 transition-colors">
+                <div class="text-xs uppercase tracking-wide opacity-70 mb-1">History</div>
+                <div class="font-semibold">Фактические наблюдения</div>
+                <div class="text-xs opacity-70 mt-1">Реальные точки из `/history`, включая аномалии.</div>
+            </a>
+        </div>
+    </div>
     
     <!-- AQI Main Card -->
-    <div class="lg:col-span-2 glass-enhanced rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden card-hover">
+    <div id="now-section" class="lg:col-span-2 glass-enhanced rounded-3xl p-8 flex flex-col justify-between relative overflow-hidden card-hover scroll-mt-24">
         <div class="relative z-10">
             <div class="inline-flex items-center gap-2 px-3 py-1 mb-3 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-xs uppercase tracking-wide">
                 <i data-lucide="radio" class="w-3 h-3"></i>
@@ -82,7 +105,7 @@
     </div>
 
     <!-- Action-Oriented Recommendations -->
-    <div class="lg:col-span-3">
+    <div id="forecast-section" class="lg:col-span-3 scroll-mt-24">
         <div class="glass-enhanced rounded-3xl p-6 border border-white/20">
             <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
                 <i data-lucide="siren" class="w-5 h-5 text-amber-300"></i>
@@ -155,7 +178,7 @@
 
     <!-- Forecast Section -->
     {% if forecast %}
-    <div class="lg:col-span-3">
+    <div id="history-section" class="lg:col-span-3 scroll-mt-24">
         <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
             <i data-lucide="calendar" class="w-5 h-5"></i>
             Прогноз (Forecast): ближайшие 24 часа
