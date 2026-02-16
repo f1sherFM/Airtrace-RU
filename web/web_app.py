@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional
 import uvicorn
 from datetime import datetime
 import json
+import os
 from http_transport import create_async_client
 
 app = FastAPI(title="AirTrace RU Web Interface")
@@ -26,7 +27,7 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Конфигурация
-API_BASE_URL = "http://127.0.0.1:8000"
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
 # Города
 CITIES = {
