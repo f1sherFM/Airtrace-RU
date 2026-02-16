@@ -53,3 +53,17 @@ async def test_telegram_delivery_dead_letter_on_exhausted_retries():
     assert result["attempts"] == 2
     assert len(sink.items) == 1
     assert sink.items[0]["event_id"] == "evt-2"
+
+
+@pytest.mark.asyncio
+async def test_telegram_delivery_status_log_keeps_recent_events():
+    sink = _MemoryDeadLetter()
+    service = TelegramDeliveryService(bot_token="", max_retries=1, retry_delay_seconds=0.0, dead_letter_sink=sink)
+
+    first = await service.send_message(chat_id="123", text="a", event_id="evt-a")
+    second = await service.send_message(chat_id="123", text="b", event_id="evt-b")
+
+    recent = service.status_store.list_recent(limit=2)
+    assert len(recent) == 2
+    assert recent[0]["event_id"] == first["event_id"]
+    assert recent[1]["event_id"] == second["event_id"]
