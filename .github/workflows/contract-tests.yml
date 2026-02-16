@@ -25,4 +25,17 @@ jobs:
 
       - name: Run contract tests
         run: |
-          python -m pytest -q tests/test_v2_contract.py tests/test_history_api_contract.py tests/test_history_export_integration.py tests/test_provenance_metadata_contract.py
+          mkdir -p artifacts
+          python -m pytest tests/test_contract_snapshot.py tests/test_v2_contract.py tests/test_history_api_contract.py tests/test_history_export_integration.py tests/test_provenance_metadata_contract.py --junitxml=artifacts/contract-tests-junit.xml
+
+      - name: Upload contract test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-test-report
+          path: artifacts/
+          if-no-files-found: error
+
+      - name: CI gate note
+        run: |
+          echo "For branch protection, set required status check to: contract-tests"

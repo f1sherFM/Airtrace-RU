@@ -1,0 +1,1030 @@
+{
+  "components": {
+    "schemas": {
+      "AirQualityData": {
+        "description": "Основная модель данных о качестве воздуха с интеграцией WeatherAPI",
+        "example": {
+          "aqi": {
+            "category": "Умеренное",
+            "color": "#FFFF00",
+            "description": "Качество воздуха приемлемо для большинства людей",
+            "value": 85
+          },
+          "health_warnings": [],
+          "location": {
+            "latitude": 55.7558,
+            "longitude": 37.6176
+          },
+          "nmu_risk": "low",
+          "pollutants": {
+            "no2": 35.1,
+            "pm10": 45.2,
+            "pm2_5": 25.4,
+            "so2": 12.3
+          },
+          "recommendations": "Чувствительные люди должны ограничить длительное пребывание на улице",
+          "timestamp": "2024-01-15T12:00:00Z",
+          "weather": {
+            "location_name": "Moscow",
+            "pressure": {
+              "pressure_in": 29.92,
+              "pressure_mb": 1013.25,
+              "timestamp": "2024-01-15T12:00:00Z"
+            },
+            "temperature": {
+              "celsius": 15.5,
+              "fahrenheit": 59.9,
+              "source": "weatherapi",
+              "timestamp": "2024-01-15T12:00:00Z"
+            },
+            "wind": {
+              "direction_compass": "S",
+              "direction_degrees": 180,
+              "speed_kmh": 12.5,
+              "speed_mph": 7.8,
+              "timestamp": "2024-01-15T12:00:00Z"
+            }
+          }
+        },
+        "properties": {
+          "aqi": {
+            "$ref": "#/components/schemas/AQIInfo"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Плоское зеркальное поле confidence [0..1] (для единого контракта)",
+            "title": "Confidence"
+          },
+          "data_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Плоское зеркальное поле источника данных (для единого контракта)",
+            "title": "Data Source"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Плоское зеркальное поле свежести данных (для единого контракта)",
+            "title": "Freshness"
+          },
+          "health_warnings": {
+            "description": "Предупреждения о здоровье на русском языке",
+            "items": {
+              "type": "string"
+            },
+            "title": "Health Warnings",
+            "type": "array"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationInfo",
+            "description": "Координаты местоположения"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata",
+            "description": "Унифицированная provenance metadata для всех ответов API"
+          },
+          "nmu_risk": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Уровень риска НМУ (low/medium/high)",
+            "title": "Nmu Risk"
+          },
+          "pollutants": {
+            "$ref": "#/components/schemas/PollutantData",
+            "description": "Данные о концентрации загрязнителей"
+          },
+          "recommendations": {
+            "description": "Рекомендации на русском языке",
+            "title": "Recommendations",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Временная метка данных в UTC",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "weather": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WeatherInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Дополнительные данные о погоде от WeatherAPI"
+          }
+        },
+        "required": [
+          "location",
+          "aqi",
+          "pollutants",
+          "recommendations"
+        ],
+        "title": "AirQualityData",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthCheckResponse": {
+        "description": "Ответ health check эндпоинта",
+        "example": {
+          "services": {
+            "api": "healthy",
+            "cache": "healthy",
+            "external_api": "healthy"
+          },
+          "status": "healthy",
+          "timestamp": "2024-01-15T12:00:00Z"
+        },
+        "properties": {
+          "services": {
+            "additionalProperties": true,
+            "description": "Статус компонентов системы в нормализованном формате",
+            "title": "Services",
+            "type": "object"
+          },
+          "status": {
+            "description": "Общий статус сервиса (healthy/degraded/unhealthy)",
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Время проверки",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "services"
+        ],
+        "title": "HealthCheckResponse",
+        "type": "object"
+      },
+      "HistoricalSnapshotRecord": {
+        "description": "Каноническая запись часового среза качества воздуха",
+        "example": {
+          "aqi": 85,
+          "city_code": "moscow",
+          "confidence": 0.92,
+          "data_source": "live",
+          "freshness": "fresh",
+          "ingested_at": "2026-02-15T18:03:21Z",
+          "latitude": 55.7558,
+          "longitude": 37.6176,
+          "pollutants": {
+            "no2": 35.1,
+            "o3": 85.7,
+            "pm10": 45.2,
+            "pm2_5": 25.4,
+            "so2": 12.3
+          },
+          "snapshot_hour_utc": "2026-02-15T18:00:00Z"
+        },
+        "properties": {
+          "anomaly_baseline_aqi": {
+            "anyOf": [
+              {
+                "maximum": 500.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Baseline AQI, относительно которого детектирована аномалия",
+            "title": "Anomaly Baseline Aqi"
+          },
+          "anomaly_detected": {
+            "default": false,
+            "description": "Флаг аномалии относительно локального baseline",
+            "title": "Anomaly Detected",
+            "type": "boolean"
+          },
+          "anomaly_score": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Нормализованная сила аномалии (чем больше, тем сильнее отклонение)",
+            "title": "Anomaly Score"
+          },
+          "anomaly_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Тип аномалии: spike/dropout",
+            "title": "Anomaly Type"
+          },
+          "aqi": {
+            "description": "Индекс качества воздуха AQI",
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Aqi",
+            "type": "integer"
+          },
+          "city_code": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 2,
+                "pattern": "^[a-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Канонический код города (для преднастроенных городов)",
+            "title": "City Code"
+          },
+          "confidence": {
+            "description": "Уверенность в данных [0..1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "data_source": {
+            "$ref": "#/components/schemas/DataSource",
+            "description": "Источник данных"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/HistoryFreshness",
+            "description": "Свежесть записи"
+          },
+          "ingested_at": {
+            "description": "Время записи в хранилище",
+            "title": "Ingested At",
+            "type": "string"
+          },
+          "latitude": {
+            "description": "Широта",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Долгота",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata",
+            "description": "Унифицированная provenance metadata для history API"
+          },
+          "pollutants": {
+            "$ref": "#/components/schemas/PollutantData",
+            "description": "Концентрации загрязнителей"
+          },
+          "snapshot_hour_utc": {
+            "description": "Начало часа в UTC",
+            "title": "Snapshot Hour Utc",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_hour_utc",
+          "latitude",
+          "longitude",
+          "aqi",
+          "pollutants",
+          "data_source",
+          "freshness",
+          "confidence"
+        ],
+        "title": "HistoricalSnapshotRecord",
+        "type": "object"
+      },
+      "HistoryQueryResponse": {
+        "description": "Ответ history API с пагинацией",
+        "example": {
+          "items": [],
+          "page": 1,
+          "page_size": 50,
+          "range": "24h",
+          "total": 3
+        },
+        "properties": {
+          "items": {
+            "description": "Список исторических записей",
+            "items": {
+              "$ref": "#/components/schemas/HistoricalSnapshotRecord"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "Номер страницы (с 1)",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "description": "Размер страницы",
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "range": {
+            "$ref": "#/components/schemas/HistoryRange",
+            "description": "Примененный диапазон выборки"
+          },
+          "total": {
+            "description": "Общее число найденных записей",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "range",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "title": "HistoryQueryResponse",
+        "type": "object"
+      },
+      "ResponseMetadata": {
+        "description": "Единая metadata-модель происхождения и качества данных",
+        "properties": {
+          "cache_age_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Возраст данных в кэше в секундах (если применимо)",
+            "title": "Cache Age Seconds"
+          },
+          "confidence": {
+            "default": 0.9,
+            "description": "Уверенность в данных [0..1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "confidence_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "Calculated from source availability and fallback usage",
+            "description": "Краткое объяснение расчета confidence",
+            "title": "Confidence Explanation"
+          },
+          "data_source": {
+            "default": "live",
+            "description": "Источник данных: live/forecast/historical/fallback",
+            "title": "Data Source",
+            "type": "string"
+          },
+          "fallback_used": {
+            "default": false,
+            "description": "Использовался ли fallback-путь",
+            "title": "Fallback Used",
+            "type": "boolean"
+          },
+          "freshness": {
+            "default": "fresh",
+            "description": "Свежесть данных: fresh/stale/expired",
+            "title": "Freshness",
+            "type": "string"
+          }
+        },
+        "title": "ResponseMetadata",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Air Quality Monitoring API for Russian cities with privacy-first approach",
+    "title": "AirTrace RU API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health_check_health_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/history": {
+      "get": {
+        "operationId": "get_history_history_get",
+        "parameters": [
+          {
+            "description": "Диапазон: 24h, 7d или 30d",
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/HistoryRange",
+              "default": "24h",
+              "description": "Диапазон: 24h, 7d или 30d"
+            }
+          },
+          {
+            "description": "Номер страницы (с 1)",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "Номер страницы (с 1)",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Размер страницы",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Размер страницы",
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Код города (например, moscow)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Код города (например, moscow)",
+              "title": "City"
+            }
+          },
+          {
+            "description": "Широта для custom history",
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Широта для custom history",
+              "title": "Lat"
+            }
+          },
+          {
+            "description": "Долгота для custom history",
+            "in": "query",
+            "name": "lon",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Долгота для custom history",
+              "title": "Lon"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryQueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/v2/current": {
+      "get": {
+        "operationId": "get_current_air_quality_v2_v2_current_get",
+        "parameters": [
+          {
+            "description": "Широта",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "description": "Широта",
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Долгота",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "description": "Долгота",
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirQualityData"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/v2/forecast": {
+      "get": {
+        "operationId": "get_forecast_air_quality_v2_v2_forecast_get",
+        "parameters": [
+          {
+            "description": "Широта",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "description": "Широта",
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Долгота",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "description": "Долгота",
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AirQualityData"
+                  },
+                  "title": "Response Get Forecast Air Quality V2 V2 Forecast Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/v2/health": {
+      "get": {
+        "operationId": "health_check_v2_v2_health_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/v2/history": {
+      "get": {
+        "operationId": "get_history_v2_v2_history_get",
+        "parameters": [
+          {
+            "description": "Диапазон: 24h, 7d или 30d",
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/HistoryRange",
+              "default": "24h",
+              "description": "Диапазон: 24h, 7d или 30d"
+            }
+          },
+          {
+            "description": "Номер страницы (с 1)",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "Номер страницы (с 1)",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Размер страницы",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Размер страницы",
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Код города (например, moscow)",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Код города (например, moscow)",
+              "title": "City"
+            }
+          },
+          {
+            "description": "Широта для custom history",
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Широта для custom history",
+              "title": "Lat"
+            }
+          },
+          {
+            "description": "Долгота для custom history",
+            "in": "query",
+            "name": "lon",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Долгота для custom history",
+              "title": "Lon"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryQueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/weather/current": {
+      "get": {
+        "operationId": "get_current_air_quality_weather_current_get",
+        "parameters": [
+          {
+            "description": "Широта",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "description": "Широта",
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Долгота",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "description": "Долгота",
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirQualityData"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    },
+    "/weather/forecast": {
+      "get": {
+        "operationId": "get_forecast_air_quality_weather_forecast_get",
+        "parameters": [
+          {
+            "description": "Широта",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "description": "Широта",
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Долгота",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "description": "Долгота",
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AirQualityData"
+                  },
+                  "title": "Response Get Forecast Air Quality Weather Forecast Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        }
+      }
+    }
+  }
+}

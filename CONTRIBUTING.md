@@ -79,6 +79,16 @@ pytest tests/test_property_*.py -v
 pytest tests/ --cov=. --cov-report=html
 ```
 
+## 🛡️ Contract Gate в CI (v4)
+
+- Workflow: `.github/workflows/contract-tests.yml`
+- Для protected branch сделайте обязательным статус-check: `contract-tests`
+- Snapshot тест контракта: `tests/test_contract_snapshot.py`
+- Осознанное обновление snapshot:
+```bash
+UPDATE_CONTRACT_SNAPSHOT=1 python -m pytest -q tests/test_contract_snapshot.py
+```
+
 ## 🌍 Локализация
 
 Мы приветствуем переводы на другие языки:
