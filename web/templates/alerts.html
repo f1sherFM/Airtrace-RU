@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block location_display %}Настройки уведомлений{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-1 glass-enhanced rounded-3xl p-6">
+        <h2 class="text-xl font-bold mb-4">Создать правило</h2>
+        <form method="post" action="/alerts/settings/create" class="space-y-3">
+            <input name="name" required placeholder="Название правила" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            <input name="aqi_threshold" type="number" min="0" max="500" placeholder="AQI threshold (опц.)" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            <input name="nmu_levels" placeholder="NMU уровни, через запятую (high,critical)" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            <input name="cooldown_minutes" type="number" min="1" max="1440" value="60" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            <div class="grid grid-cols-2 gap-2">
+                <input name="quiet_hours_start" type="number" min="0" max="23" placeholder="quiet start" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+                <input name="quiet_hours_end" type="number" min="0" max="23" placeholder="quiet end" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            </div>
+            <input name="channel" value="telegram" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            <input name="chat_id" placeholder="Telegram chat_id" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" checked> Включено</label>
+            <button type="submit" class="w-full btn-glass rounded-xl px-4 py-2">Создать</button>
+        </form>
+    </div>
+
+    <div class="lg:col-span-2 glass-enhanced rounded-3xl p-6">
+        <h2 class="text-xl font-bold mb-4">Текущие правила</h2>
+        {% if rules %}
+            <div class="space-y-4">
+                {% for rule in rules %}
+                <div class="glass-dark rounded-2xl p-4 border border-white/10">
+                    <form method="post" action="/alerts/settings/update/{{ rule.id }}" class="space-y-3">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            <input name="name" value="{{ rule.name }}" required class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+                            <input name="aqi_threshold" type="number" min="0" max="500" value="{{ rule.aqi_threshold if rule.aqi_threshold is not none else '' }}" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+                            <input name="nmu_levels" value="{{ rule.nmu_levels | join(',') }}" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+                            <input name="cooldown_minutes" type="number" min="1" max="1440" value="{{ rule.cooldown_minutes }}" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+                            <input name="quiet_hours_start" type="number" min="0" max="23" value="{{ rule.quiet_hours_start if rule.quiet_hours_start is not none else '' }}" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+                            <input name="quiet_hours_end" type="number" min="0" max="23" value="{{ rule.quiet_hours_end if rule.quiet_hours_end is not none else '' }}" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+                            <input name="channel" value="{{ rule.channel if rule.channel else 'telegram' }}" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+                            <input name="chat_id" value="{{ rule.chat_id if rule.chat_id else '' }}" placeholder="Telegram chat_id" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+                        </div>
+                        <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" {% if rule.enabled %}checked{% endif %}> Включено</label>
+                        <button type="submit" class="btn-glass rounded-xl px-4 py-2 text-sm">Сохранить</button>
+                    </form>
+                    <form method="post" action="/alerts/settings/delete/{{ rule.id }}" class="mt-2">
+                        <button type="submit" class="rounded-xl px-4 py-2 text-sm bg-red-500/20 border border-red-500/40">Удалить</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+        <div class="text-sm opacity-70">Правил пока нет.</div>
+        {% endif %}
+    </div>
+
+    <div class="lg:col-span-3 glass-enhanced rounded-3xl p-6">
+        <h2 class="text-xl font-bold mb-4">Daily Digest (опционально)</h2>
+        <p class="text-sm opacity-80 mb-4">Сводка за 24 часа: тренд, ключевые предупреждения и рекомендуемые действия.</p>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
+            <input id="digest-city" placeholder="city key (например moscow)" class="px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            <input id="digest-lat" type="number" step="0.0001" placeholder="lat (опц.)" class="px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            <input id="digest-lon" type="number" step="0.0001" placeholder="lon (опц.)" class="px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+            <input id="digest-chat" placeholder="Telegram chat_id" class="px-3 py-2 rounded-lg bg-white/10 border border-white/20">
+        </div>
+        <div class="flex gap-2 mb-4">
+            <button onclick="previewDigest()" class="btn-glass rounded-xl px-4 py-2 text-sm">Предпросмотр</button>
+            <button onclick="deliverDigest()" class="rounded-xl px-4 py-2 text-sm bg-blue-500/20 border border-blue-500/40">Отправить в Telegram</button>
+        </div>
+        <div id="digest-result" class="text-sm opacity-80 p-3 bg-white/5 rounded-lg border border-white/10">Выберите локацию и нажмите «Предпросмотр».</div>
+    </div>
+</div>
+<script>
+async function previewDigest() {
+    const city = document.getElementById('digest-city').value.trim();
+    const lat = document.getElementById('digest-lat').value.trim();
+    const lon = document.getElementById('digest-lon').value.trim();
+    const result = document.getElementById('digest-result');
+    result.textContent = 'Загрузка дайджеста...';
+    const params = new URLSearchParams();
+    if (city) params.set('city_key', city);
+    if (!city && lat && lon) { params.set('lat', lat); params.set('lon', lon); }
+    const resp = await fetch(`/api/alerts/digest-preview?${params.toString()}`);
+    const data = await resp.json();
+    if (!resp.ok) {
+        result.textContent = `Ошибка: ${data.detail || 'не удалось построить дайджест'}`;
+        return;
+    }
+    result.innerHTML = `
+        <div><strong>${data.location_label}</strong> · ${data.period}</div>
+        <div>Тренд: <strong>${data.trend}</strong></div>
+        <div>Предупреждения: ${(data.top_warnings || []).join('; ')}</div>
+        <div>Действия: ${(data.recommended_actions || []).join('; ')}</div>
+    `;
+}
+
+async function deliverDigest() {
+    const city = document.getElementById('digest-city').value.trim();
+    const lat = document.getElementById('digest-lat').value.trim();
+    const lon = document.getElementById('digest-lon').value.trim();
+    const chatId = document.getElementById('digest-chat').value.trim();
+    const result = document.getElementById('digest-result');
+    if (!chatId) {
+        result.textContent = 'Укажите Telegram chat_id для отправки.';
+        return;
+    }
+    const formData = new FormData();
+    formData.append('chat_id', chatId);
+    if (city) formData.append('city_key', city);
+    if (!city && lat && lon) { formData.append('lat', lat); formData.append('lon', lon); }
+    result.textContent = 'Отправка дайджеста...';
+    const resp = await fetch('/api/alerts/digest-deliver', { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (!resp.ok) {
+        result.textContent = `Ошибка отправки: ${data.detail || 'не удалось отправить'}`;
+        return;
+    }
+    result.textContent = `Дайджест отправлен: status=${data.status}, attempts=${data.attempts}`;
+}
+</script>
+{% endblock %}

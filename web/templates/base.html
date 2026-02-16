@@ -141,6 +141,10 @@
                 {% include 'custom_select.html' %}
                 
                 <div class="flex gap-2">
+                    <a href="/alerts/settings" class="btn-glass rounded-xl px-4 py-2 flex items-center gap-2" aria-label="Открыть настройки алертов">
+                        <i data-lucide="bell" class="w-4 h-4"></i>
+                        <span class="hidden md:inline">Алерты</span>
+                    </a>
                     {% if current_city %}
                     {% if is_custom %}
                     <form method="post" action="/custom">

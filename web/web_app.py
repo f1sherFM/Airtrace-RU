@@ -11,7 +11,7 @@ from fastapi import FastAPI, Request, Form, HTTPException, Query
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import uvicorn
 from datetime import datetime
 import json
@@ -117,6 +117,64 @@ class AirQualityService:
             return response.json()
         except:
             return {"status": "unhealthy"}
+
+    async def list_alert_rules(self) -> List[Dict[str, Any]]:
+        try:
+            response = await self.client.get(f"{API_BASE_URL}/alerts/rules")
+            response.raise_for_status()
+            return response.json()
+        except Exception:
+            return []
+
+    async def create_alert_rule(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        response = await self.client.post(f"{API_BASE_URL}/alerts/rules", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    async def update_alert_rule(self, rule_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        response = await self.client.put(f"{API_BASE_URL}/alerts/rules/{rule_id}", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    async def delete_alert_rule(self, rule_id: str) -> Dict[str, Any]:
+        response = await self.client.delete(f"{API_BASE_URL}/alerts/rules/{rule_id}")
+        response.raise_for_status()
+        return response.json()
+
+    async def get_daily_digest(
+        self,
+        *,
+        city: Optional[str] = None,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+        if city:
+            params["city"] = city
+        elif lat is not None and lon is not None:
+            params["lat"] = lat
+            params["lon"] = lon
+        response = await self.client.get(f"{API_BASE_URL}/alerts/digest/daily", params=params)
+        response.raise_for_status()
+        return response.json()
+
+    async def deliver_daily_digest(
+        self,
+        *,
+        chat_id: str,
+        city: Optional[str] = None,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        params: Dict[str, Any] = {"chat_id": chat_id}
+        if city:
+            params["city"] = city
+        elif lat is not None and lon is not None:
+            params["lat"] = lat
+            params["lon"] = lon
+        response = await self.client.get(f"{API_BASE_URL}/alerts/digest/daily-and-deliver", params=params)
+        response.raise_for_status()
+        return response.json()
     
     async def close(self):
         """Закрытие HTTP клиента"""
@@ -438,6 +496,104 @@ async def refresh_city_data(city_key: str):
     
     # Перенаправляем на страницу города для обновления
     return RedirectResponse(url=f"/city/{city_key}", status_code=303)
+
+
+@app.get("/alerts/settings", response_class=HTMLResponse)
+async def alert_settings_page(request: Request):
+    """Alert settings UI with full CRUD for rules."""
+    rules = await air_service.list_alert_rules()
+    return templates.TemplateResponse(
+        "alerts.html",
+        {
+            "request": request,
+            "cities": CITIES,
+            "rules": rules,
+            "api_status": "healthy",
+            "title": "AirTrace RU — Настройки алертов",
+        },
+    )
+
+
+@app.get("/api/alerts/digest-preview")
+async def alert_digest_preview_api(
+    city_key: Optional[str] = Query(None),
+    lat: Optional[float] = Query(None, ge=-90, le=90),
+    lon: Optional[float] = Query(None, ge=-180, le=180),
+):
+    city = city_key if city_key else None
+    return await air_service.get_daily_digest(city=city, lat=lat, lon=lon)
+
+
+@app.post("/api/alerts/digest-deliver")
+async def alert_digest_deliver_api(
+    chat_id: str = Form(...),
+    city_key: Optional[str] = Form(None),
+    lat: Optional[float] = Form(None),
+    lon: Optional[float] = Form(None),
+):
+    city = city_key if city_key else None
+    return await air_service.deliver_daily_digest(chat_id=chat_id, city=city, lat=lat, lon=lon)
+
+
+@app.post("/alerts/settings/create")
+async def alert_settings_create(
+    name: str = Form(...),
+    enabled: Optional[str] = Form(None),
+    aqi_threshold: Optional[int] = Form(None),
+    nmu_levels: Optional[str] = Form(None),
+    cooldown_minutes: int = Form(60),
+    quiet_hours_start: Optional[int] = Form(None),
+    quiet_hours_end: Optional[int] = Form(None),
+    channel: str = Form("telegram"),
+    chat_id: Optional[str] = Form(None),
+):
+    payload = {
+        "name": name,
+        "enabled": enabled == "on",
+        "aqi_threshold": aqi_threshold,
+        "nmu_levels": [x.strip() for x in (nmu_levels or "").split(",") if x.strip()],
+        "cooldown_minutes": cooldown_minutes,
+        "quiet_hours_start": quiet_hours_start,
+        "quiet_hours_end": quiet_hours_end,
+        "channel": channel,
+        "chat_id": chat_id or None,
+    }
+    await air_service.create_alert_rule(payload)
+    return RedirectResponse(url="/alerts/settings", status_code=303)
+
+
+@app.post("/alerts/settings/update/{rule_id}")
+async def alert_settings_update(
+    rule_id: str,
+    name: str = Form(...),
+    enabled: Optional[str] = Form(None),
+    aqi_threshold: Optional[int] = Form(None),
+    nmu_levels: Optional[str] = Form(None),
+    cooldown_minutes: int = Form(60),
+    quiet_hours_start: Optional[int] = Form(None),
+    quiet_hours_end: Optional[int] = Form(None),
+    channel: str = Form("telegram"),
+    chat_id: Optional[str] = Form(None),
+):
+    payload = {
+        "name": name,
+        "enabled": enabled == "on",
+        "aqi_threshold": aqi_threshold,
+        "nmu_levels": [x.strip() for x in (nmu_levels or "").split(",") if x.strip()],
+        "cooldown_minutes": cooldown_minutes,
+        "quiet_hours_start": quiet_hours_start,
+        "quiet_hours_end": quiet_hours_end,
+        "channel": channel,
+        "chat_id": chat_id or None,
+    }
+    await air_service.update_alert_rule(rule_id, payload)
+    return RedirectResponse(url="/alerts/settings", status_code=303)
+
+
+@app.post("/alerts/settings/delete/{rule_id}")
+async def alert_settings_delete(rule_id: str):
+    await air_service.delete_alert_rule(rule_id)
+    return RedirectResponse(url="/alerts/settings", status_code=303)
 
 @app.get("/api/health")
 async def api_health():

@@ -35,6 +35,13 @@ from schemas import (
     CoordinatesRequest,
     HistoryQueryResponse,
     HistoryRange,
+    AlertRuleCreate,
+    AlertRuleUpdate,
+    AlertRule,
+    AlertEvent,
+    TelegramSendRequest,
+    DeliveryResult,
+    DailyDigestResponse,
 )
 from services import AirQualityService
 from unified_weather_service import unified_weather_service
@@ -51,6 +58,8 @@ from history_ingestion import (
     InMemoryHistoricalSnapshotStore,
     JsonlDeadLetterSink,
 )
+from alert_rule_engine import AlertRuleEngine
+from telegram_delivery import TelegramDeliveryService, JsonlDeadLetterSink as TelegramDeadLetterSink
 
 # Настройка privacy-aware логирования
 setup_privacy_logging()
@@ -60,6 +69,13 @@ logger = logging.getLogger(__name__)
 air_quality_service: Optional[AirQualityService] = None
 history_ingestion_pipeline: Optional[HistoryIngestionPipeline] = None
 history_snapshot_store: Optional[InMemoryHistoricalSnapshotStore] = None
+alert_rule_engine = AlertRuleEngine()
+telegram_delivery_service = TelegramDeliveryService(
+    bot_token=os.getenv("TELEGRAM_BOT_TOKEN", ""),
+    max_retries=int(os.getenv("TELEGRAM_MAX_RETRIES", "3")),
+    retry_delay_seconds=float(os.getenv("TELEGRAM_RETRY_DELAY_SECONDS", "0.7")),
+    dead_letter_sink=TelegramDeadLetterSink("logs/telegram_dead_letter.jsonl"),
+)
 
 
 @asynccontextmanager
@@ -679,6 +695,215 @@ async def get_history_v2(
 ):
     """v2 version of history endpoint."""
     return await get_history(range=range, page=page, page_size=page_size, city=city, lat=lat, lon=lon)
+
+
+@app.post("/alerts/rules", response_model=AlertRule)
+async def create_alert_rule(payload: AlertRuleCreate):
+    """Create user-defined alert rule (AQI/NMU, cooldown, quiet hours)."""
+    return alert_rule_engine.create_rule(payload)
+
+
+@app.get("/alerts/rules", response_model=list[AlertRule])
+async def list_alert_rules():
+    """List alert rules."""
+    return alert_rule_engine.list_rules()
+
+
+@app.delete("/alerts/rules/{rule_id}")
+async def delete_alert_rule(rule_id: str):
+    """Delete alert rule by id."""
+    deleted = alert_rule_engine.delete_rule(rule_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Правило алерта не найдено")
+    return {"deleted": True, "rule_id": rule_id}
+
+
+@app.put("/alerts/rules/{rule_id}", response_model=AlertRule)
+async def update_alert_rule(rule_id: str, payload: AlertRuleUpdate):
+    """Update alert rule by id."""
+    updated = alert_rule_engine.update_rule(rule_id, payload)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Правило алерта не найдено")
+    return updated
+
+
+@app.get("/alerts/check-current", response_model=list[AlertEvent])
+async def check_current_alerts(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+):
+    """Evaluate alert rules against current data for location."""
+    data = await unified_weather_service.get_current_combined_data(lat, lon)
+    return alert_rule_engine.evaluate(
+        aqi=data.aqi.value,
+        nmu_risk=data.nmu_risk,
+    )
+
+
+@app.post("/alerts/telegram/send", response_model=DeliveryResult)
+async def send_telegram_message(payload: TelegramSendRequest):
+    """Send message via Telegram channel with retry/dead-letter."""
+    result = await telegram_delivery_service.send_message(
+        chat_id=payload.chat_id,
+        text=payload.message,
+    )
+    return DeliveryResult(**result)
+
+
+@app.get("/alerts/check-current-and-deliver", response_model=list[DeliveryResult])
+async def check_current_alerts_and_deliver(
+    lat: float = Query(..., ge=-90, le=90),
+    lon: float = Query(..., ge=-180, le=180),
+    chat_id: Optional[str] = Query(None, min_length=1, max_length=128),
+):
+    """Evaluate current alerts and deliver unsuppressed alerts to Telegram."""
+    data = await unified_weather_service.get_current_combined_data(lat, lon)
+    events = alert_rule_engine.evaluate(aqi=data.aqi.value, nmu_risk=data.nmu_risk)
+    delivered: list[DeliveryResult] = []
+    for idx, event in enumerate(events, start=1):
+        if event.suppressed:
+            continue
+        rule = alert_rule_engine.get_rule(event.rule_id)
+        destination_chat_id = chat_id or (rule.chat_id if rule else None)
+        if not destination_chat_id:
+            continue
+        text = (
+            f"AirTrace Alert #{idx}\n"
+            f"Rule: {event.rule_name}\n"
+            f"AQI: {data.aqi.value}\n"
+            f"NMU: {data.nmu_risk}\n"
+            f"Severity: {event.severity}\n"
+            f"Reasons: {', '.join(event.reasons)}"
+        )
+        event_id = f"{event.rule_id}:{int(event.triggered_at.timestamp())}"
+        result = await telegram_delivery_service.send_message(chat_id=destination_chat_id, text=text, event_id=event_id)
+        delivered.append(DeliveryResult(**result))
+    return delivered
+
+
+@app.get("/alerts/delivery-status")
+async def get_alert_delivery_status(limit: int = Query(20, ge=1, le=200)):
+    """Get recent delivery status entries (in-memory tracking)."""
+    return {"items": telegram_delivery_service.status_store.list_recent(limit=limit), "count": limit}
+
+
+async def _build_daily_digest(
+    *,
+    city: Optional[str],
+    lat: Optional[float],
+    lon: Optional[float],
+) -> DailyDigestResponse:
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(hours=24)
+    items = []
+    if history_snapshot_store is not None:
+        result = await history_snapshot_store.query_snapshots(
+            start_utc=start,
+            end_utc=now,
+            city_code=city,
+            lat=lat,
+            lon=lon,
+            limit=500,
+            offset=0,
+        )
+        items = list(reversed(result["items"]))  # chronological
+
+    if not items and lat is not None and lon is not None:
+        current = await unified_weather_service.get_current_combined_data(lat, lon)
+        items = [current]
+
+    if not items:
+        return DailyDigestResponse(
+            location_label=city or f"{lat},{lon}",
+            trend="stable",
+            top_warnings=["Недостаточно данных для полноценного дайджеста"],
+            recommended_actions=["Проверьте доступность history данных и повторите позже"],
+            summary_text="За последние 24 часа данных недостаточно для тренда.",
+        )
+
+    def _aqi_value(item):
+        return item.aqi if hasattr(item, "aqi") and isinstance(item.aqi, int) else item.aqi.value
+
+    first_aqi = _aqi_value(items[0])
+    last_aqi = _aqi_value(items[-1])
+    delta = last_aqi - first_aqi
+    if delta >= 15:
+        trend = "worsening"
+    elif delta <= -15:
+        trend = "improving"
+    else:
+        trend = "stable"
+
+    max_aqi = max(_aqi_value(x) for x in items)
+    warnings: list[str] = []
+    if max_aqi >= 200:
+        warnings.append("Были периоды очень высокого загрязнения (AQI >= 200)")
+    elif max_aqi >= 150:
+        warnings.append("Были периоды высокого загрязнения (AQI >= 150)")
+    anomaly_count = sum(1 for x in items if getattr(x, "anomaly_detected", False))
+    if anomaly_count > 0:
+        warnings.append(f"Зафиксированы аномалии: {anomaly_count}")
+    if not warnings:
+        warnings.append("Критических эпизодов не зафиксировано")
+
+    if trend == "worsening":
+        actions = [
+            "Сократите длительную активность на улице в ближайшие часы",
+            "Проветривание переносите на периоды более низкого AQI",
+        ]
+    elif trend == "improving":
+        actions = [
+            "Можно планировать короткие прогулки в часы минимального AQI",
+            "Сохраните базовую осторожность для чувствительных групп",
+        ]
+    else:
+        actions = [
+            "Поддерживайте стандартные меры предосторожности",
+            "Отслеживайте обновления при изменении погодных условий",
+        ]
+
+    label = city or f"{lat},{lon}"
+    summary = f"Дайджест за 24ч для {label}: тренд {trend}, максимум AQI {max_aqi}."
+    return DailyDigestResponse(
+        location_label=label,
+        trend=trend,
+        top_warnings=warnings,
+        recommended_actions=actions,
+        summary_text=summary,
+    )
+
+
+@app.get("/alerts/digest/daily", response_model=DailyDigestResponse)
+async def get_daily_digest(
+    city: Optional[str] = Query(None, min_length=2, max_length=64),
+    lat: Optional[float] = Query(None, ge=-90, le=90),
+    lon: Optional[float] = Query(None, ge=-180, le=180),
+):
+    """Build optional daily digest summary for selected location."""
+    if city is None and ((lat is None) != (lon is None)):
+        raise HTTPException(status_code=400, detail="Для custom локации передайте lat и lon вместе")
+    return await _build_daily_digest(city=city, lat=lat, lon=lon)
+
+
+@app.get("/alerts/digest/daily-and-deliver", response_model=DeliveryResult)
+async def deliver_daily_digest(
+    chat_id: str = Query(..., min_length=1, max_length=128),
+    city: Optional[str] = Query(None, min_length=2, max_length=64),
+    lat: Optional[float] = Query(None, ge=-90, le=90),
+    lon: Optional[float] = Query(None, ge=-180, le=180),
+):
+    """Build daily digest and deliver to Telegram."""
+    digest = await _build_daily_digest(city=city, lat=lat, lon=lon)
+    message = (
+        f"AirTrace Daily Digest\n"
+        f"Локация: {digest.location_label}\n"
+        f"Период: {digest.period}\n"
+        f"Тренд: {digest.trend}\n"
+        f"Предупреждения: {'; '.join(digest.top_warnings)}\n"
+        f"Рекомендации: {'; '.join(digest.recommended_actions)}"
+    )
+    result = await telegram_delivery_service.send_message(chat_id=chat_id, text=message, event_id=f"digest:{digest.location_label}")
+    return DeliveryResult(**result)
 
 
 async def _fetch_history_records_for_export(

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from typing import Optional, Dict, Any, List
 from datetime import datetime, timezone
 from enum import Enum
+from uuid import uuid4
 
 
 class CoordinatesRequest(BaseModel):
@@ -524,3 +525,82 @@ class HistoryQueryResponse(BaseModel):
     page_size: int = Field(..., ge=1, le=500, description="Размер страницы")
     total: int = Field(..., ge=0, description="Общее число найденных записей")
     items: List[HistoricalSnapshotRecord] = Field(default_factory=list, description="Список исторических записей")
+
+
+class AlertSeverity(str, Enum):
+    INFO = "info"
+    WARNING = "warning"
+    CRITICAL = "critical"
+
+
+class AlertRuleCreate(BaseModel):
+    """Модель создания правила алерта"""
+    name: str = Field(..., min_length=1, max_length=120)
+    enabled: bool = Field(default=True)
+    aqi_threshold: Optional[int] = Field(default=None, ge=0, le=500)
+    nmu_levels: List[str] = Field(default_factory=list, description="Список уровней НМУ для триггера")
+    cooldown_minutes: int = Field(default=60, ge=1, le=1440)
+    quiet_hours_start: Optional[int] = Field(default=None, ge=0, le=23)
+    quiet_hours_end: Optional[int] = Field(default=None, ge=0, le=23)
+    channel: str = Field(default="telegram", description="Канал доставки (пока telegram)")
+    chat_id: Optional[str] = Field(default=None, min_length=1, max_length=128, description="Подписка канала")
+
+
+class AlertRuleUpdate(BaseModel):
+    """Частичное обновление правила алерта"""
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    enabled: Optional[bool] = None
+    aqi_threshold: Optional[int] = Field(default=None, ge=0, le=500)
+    nmu_levels: Optional[List[str]] = None
+    cooldown_minutes: Optional[int] = Field(default=None, ge=1, le=1440)
+    quiet_hours_start: Optional[int] = Field(default=None, ge=0, le=23)
+    quiet_hours_end: Optional[int] = Field(default=None, ge=0, le=23)
+    channel: Optional[str] = None
+    chat_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
+
+
+class AlertRule(AlertRuleCreate):
+    """Полная модель правила алерта"""
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = Field(default_factory=get_utc_now)
+
+    @field_serializer("created_at")
+    def serialize_created_at(self, dt: datetime) -> str:
+        return dt.isoformat()
+
+
+class AlertEvent(BaseModel):
+    """Событие алерта при срабатывании правила"""
+    rule_id: str
+    rule_name: str
+    triggered_at: datetime = Field(default_factory=get_utc_now)
+    severity: AlertSeverity
+    reasons: List[str] = Field(default_factory=list)
+    suppressed: bool = Field(default=False, description="Был ли алерт подавлен cooldown/quiet-hours")
+
+    @field_serializer("triggered_at")
+    def serialize_triggered_at(self, dt: datetime) -> str:
+        return dt.isoformat()
+
+
+class TelegramSendRequest(BaseModel):
+    chat_id: str = Field(..., min_length=1, max_length=128)
+    message: str = Field(..., min_length=1, max_length=4096)
+
+
+class DeliveryResult(BaseModel):
+    channel: str = Field(default="telegram")
+    status: str = Field(..., description="sent/failed")
+    attempts: int = Field(..., ge=1)
+    event_id: Optional[str] = None
+    error: Optional[str] = None
+
+
+class DailyDigestResponse(BaseModel):
+    """Daily digest summary for selected location."""
+    location_label: str
+    period: str = Field(default="24h")
+    trend: str = Field(..., description="improving/stable/worsening")
+    top_warnings: List[str] = Field(default_factory=list)
+    recommended_actions: List[str] = Field(default_factory=list)
+    summary_text: str
