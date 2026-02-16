@@ -38,7 +38,11 @@ class AlertRuleEngine:
         if rule is None:
             return None
         updates = payload.model_dump(exclude_unset=True)
-        updated = rule.model_copy(update=updates)
+        merged = rule.model_dump()
+        merged.update(updates)
+        updated = AlertRule(**merged)
+        if updated.aqi_threshold is None and not updated.nmu_levels:
+            raise ValueError("At least one trigger is required: aqi_threshold or nmu_levels")
         self._rules[rule_id] = updated
         return updated
 

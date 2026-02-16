@@ -750,7 +750,10 @@ async def delete_alert_rule(rule_id: str):
 @app.put("/alerts/rules/{rule_id}", response_model=AlertRule)
 async def update_alert_rule(rule_id: str, payload: AlertRuleUpdate):
     """Update alert rule by id."""
-    updated = alert_rule_engine.update_rule(rule_id, payload)
+    try:
+        updated = alert_rule_engine.update_rule(rule_id, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     if updated is None:
         raise HTTPException(status_code=404, detail="Правило алерта не найдено")
     return updated

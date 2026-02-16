@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 from alert_rule_engine import AlertRuleEngine
 from schemas import AlertRuleCreate
+import pytest
 
 
 def test_alert_rule_triggers_and_cooldown_suppresses_duplicates():
@@ -65,3 +66,24 @@ def test_alert_rule_nmu_trigger():
     assert len(events) == 1
     assert events[0].suppressed is False
     assert any(reason.startswith("nmu=") for reason in events[0].reasons)
+
+
+def test_alert_rule_cooldown_marks_suppressed_reason():
+    engine = AlertRuleEngine()
+    engine.create_rule(AlertRuleCreate(name="AQI>=100", aqi_threshold=100, cooldown_minutes=60))
+    t0 = datetime(2026, 2, 16, 12, 0, tzinfo=timezone.utc)
+    _ = engine.evaluate(aqi=150, nmu_risk="low", now=t0)
+    second = engine.evaluate(aqi=150, nmu_risk="low", now=t0 + timedelta(minutes=5))
+    assert len(second) == 1
+    assert second[0].suppressed is True
+    assert "cooldown" in second[0].reasons
+
+
+def test_alert_rule_validation_requires_trigger():
+    with pytest.raises(ValueError):
+        AlertRuleCreate(name="invalid", aqi_threshold=None, nmu_levels=[])
+
+
+def test_alert_rule_validation_rejects_invalid_nmu():
+    with pytest.raises(ValueError):
+        AlertRuleCreate(name="invalid nmu", nmu_levels=["extreme"])

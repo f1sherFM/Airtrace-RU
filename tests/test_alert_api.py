@@ -62,3 +62,34 @@ async def test_alert_rule_crud_and_check_current():
         delete_resp = await client.delete(f"/alerts/rules/{rule_id}")
         assert delete_resp.status_code == 200
         assert delete_resp.json()["deleted"] is True
+
+
+@pytest.mark.asyncio
+async def test_alert_rule_create_validation_rejects_empty_trigger():
+    transport = httpx.ASGITransport(app=main.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/alerts/rules",
+            json={"name": "invalid", "aqi_threshold": None, "nmu_levels": [], "cooldown_minutes": 30},
+        )
+        assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_alert_rule_update_validation_rejects_empty_result():
+    transport = httpx.ASGITransport(app=main.app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        create_resp = await client.post(
+            "/alerts/rules",
+            json={"name": "AQI >= 140", "aqi_threshold": 140, "cooldown_minutes": 30},
+        )
+        assert create_resp.status_code == 200
+        rule_id = create_resp.json()["id"]
+
+        update_resp = await client.put(
+            f"/alerts/rules/{rule_id}",
+            json={"aqi_threshold": None, "nmu_levels": []},
+        )
+        assert update_resp.status_code == 422
+
+        _ = await client.delete(f"/alerts/rules/{rule_id}")

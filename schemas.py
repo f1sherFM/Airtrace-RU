@@ -589,6 +589,31 @@ class AlertRuleCreate(BaseModel):
     channel: str = Field(default="telegram", description="Канал доставки (пока telegram)")
     chat_id: Optional[str] = Field(default=None, min_length=1, max_length=128, description="Подписка канала")
 
+    @model_validator(mode="after")
+    def validate_alert_rule(self):
+        allowed_nmu = {"low", "medium", "high", "critical"}
+        normalized_levels = []
+        seen = set()
+        for level in self.nmu_levels:
+            normalized = (level or "").strip().lower()
+            if normalized not in allowed_nmu:
+                raise ValueError(f"Unsupported nmu level: {level}")
+            if normalized not in seen:
+                seen.add(normalized)
+                normalized_levels.append(normalized)
+        self.nmu_levels = normalized_levels
+
+        if self.aqi_threshold is None and not self.nmu_levels:
+            raise ValueError("At least one trigger is required: aqi_threshold or nmu_levels")
+
+        if (self.quiet_hours_start is None) != (self.quiet_hours_end is None):
+            raise ValueError("quiet_hours_start and quiet_hours_end must be provided together")
+
+        if self.channel != "telegram":
+            raise ValueError("Only telegram channel is supported")
+
+        return self
+
 
 class AlertRuleUpdate(BaseModel):
     """Частичное обновление правила алерта"""
@@ -601,6 +626,31 @@ class AlertRuleUpdate(BaseModel):
     quiet_hours_end: Optional[int] = Field(default=None, ge=0, le=23)
     channel: Optional[str] = None
     chat_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_alert_rule_update(self):
+        if self.nmu_levels is not None:
+            allowed_nmu = {"low", "medium", "high", "critical"}
+            normalized_levels = []
+            seen = set()
+            for level in self.nmu_levels:
+                normalized = (level or "").strip().lower()
+                if normalized not in allowed_nmu:
+                    raise ValueError(f"Unsupported nmu level: {level}")
+                if normalized not in seen:
+                    seen.add(normalized)
+                    normalized_levels.append(normalized)
+            self.nmu_levels = normalized_levels
+
+        quiet_start_set = "quiet_hours_start" in self.__pydantic_fields_set__
+        quiet_end_set = "quiet_hours_end" in self.__pydantic_fields_set__
+        if quiet_start_set != quiet_end_set:
+            raise ValueError("quiet_hours_start and quiet_hours_end must be updated together")
+
+        if self.channel is not None and self.channel != "telegram":
+            raise ValueError("Only telegram channel is supported")
+
+        return self
 
 
 class AlertRule(AlertRuleCreate):
