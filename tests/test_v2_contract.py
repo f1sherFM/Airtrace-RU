@@ -81,3 +81,37 @@ async def test_health_normalized_contract_v1_and_v2():
                 for comp in payload["services"].values():
                     assert isinstance(comp, dict)
                     assert comp.get("status") in {"healthy", "degraded", "unhealthy"}
+
+
+@pytest.mark.asyncio
+async def test_v1_v2_namespace_response_compatibility():
+    with patch.object(main.unified_weather_service, "get_current_combined_data", AsyncMock(return_value=_sample_air_quality())), patch.object(
+        main.unified_weather_service, "get_forecast_combined_data", AsyncMock(return_value=[_sample_air_quality()])
+    ):
+        store = InMemoryHistoricalSnapshotStore()
+        store._records["k1"] = HistoricalSnapshotRecord(
+            snapshot_hour_utc=datetime.now(timezone.utc),
+            city_code="moscow",
+            latitude=55.7558,
+            longitude=37.6176,
+            aqi=90,
+            pollutants=PollutantData(pm2_5=30.0, pm10=55.0, no2=22.0, so2=10.0, o3=70.0),
+            data_source=DataSource.LIVE,
+            freshness=HistoryFreshness.FRESH,
+            confidence=0.91,
+        )
+        main.history_snapshot_store = store
+
+        transport = httpx.ASGITransport(app=main.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            pairs = [
+                ("/weather/current?lat=55.7558&lon=37.6176", "/v2/current?lat=55.7558&lon=37.6176"),
+                ("/weather/forecast?lat=55.7558&lon=37.6176", "/v2/forecast?lat=55.7558&lon=37.6176"),
+                ("/history?range=24h&page=1&page_size=10&city=moscow", "/v2/history?range=24h&page=1&page_size=10&city=moscow"),
+            ]
+            for legacy, v2 in pairs:
+                legacy_resp = await client.get(legacy)
+                v2_resp = await client.get(v2)
+                assert legacy_resp.status_code == 200
+                assert v2_resp.status_code == 200
+                assert legacy_resp.json() == v2_resp.json()

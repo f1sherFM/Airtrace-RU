@@ -154,6 +154,18 @@ curl "http://localhost:8000/weather/forecast?lat=53.4069&lon=58.9794"
 curl "http://localhost:8000/health"
 ```
 
+### API v2 и совместимость
+```bash
+curl "http://localhost:8000/v2/current?lat=53.4069&lon=58.9794"
+curl "http://localhost:8000/v2/forecast?lat=53.4069&lon=58.9794"
+curl "http://localhost:8000/v2/history?range=24h&page=1&page_size=50&city=moscow"
+curl "http://localhost:8000/v2/health"
+```
+
+- `v1` и `v2` маршруты работают параллельно для backward compatibility.
+- Для новых интеграций используйте `/v2/*`.
+- Матрица совместимости и deprecation notes: `docs/api_v2_compatibility.md`.
+
 ### Мониторинг производительности
 ```bash
 # Метрики системы
