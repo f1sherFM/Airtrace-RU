@@ -340,8 +340,37 @@ def _normalize_health_status(value: str) -> str:
 
 
 def _normalize_health_component(value):
+    def _merge_statuses(statuses):
+        normalized = [_normalize_health_status(s) for s in statuses]
+        if not normalized:
+            return "degraded"
+        if any(s == "unhealthy" for s in normalized):
+            return "unhealthy"
+        if all(s == "healthy" for s in normalized):
+            return "healthy"
+        return "degraded"
+
+    def _infer_status_from_mapping(mapping):
+        derived_statuses = []
+        for item in mapping.values():
+            if isinstance(item, dict):
+                nested_status = item.get("status")
+                if nested_status is not None:
+                    derived_statuses.append(str(nested_status))
+                else:
+                    derived_statuses.append(_infer_status_from_mapping(item))
+            elif isinstance(item, str):
+                derived_statuses.append(item)
+            elif isinstance(item, bool):
+                derived_statuses.append("healthy" if item else "unhealthy")
+            else:
+                derived_statuses.append("degraded")
+        return _merge_statuses(derived_statuses)
+
     if isinstance(value, dict):
-        raw_status = value.get("status", "degraded")
+        raw_status = value.get("status")
+        if raw_status is None:
+            raw_status = _infer_status_from_mapping(value)
         normalized_status = _normalize_health_status(str(raw_status))
         details = {k: v for k, v in value.items() if k != "status"}
         return {"status": normalized_status, "details": details}

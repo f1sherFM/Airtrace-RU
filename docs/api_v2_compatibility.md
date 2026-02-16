@@ -16,6 +16,7 @@ This document describes compatibility between legacy routes and the versioned `/
 - Parameter contracts are preserved between legacy and `/v2` aliases.
 - Response schema is preserved for both namespaces.
 - Provenance fields remain available in both namespaces.
+- Health component contract is normalized to `{status, details}` with status in `healthy/degraded/unhealthy`.
 
 ## Legacy Deprecation Notes
 

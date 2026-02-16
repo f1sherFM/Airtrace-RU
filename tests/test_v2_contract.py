@@ -115,3 +115,33 @@ async def test_v1_v2_namespace_response_compatibility():
                 assert legacy_resp.status_code == 200
                 assert v2_resp.status_code == 200
                 assert legacy_resp.json() == v2_resp.json()
+
+
+def test_health_component_normalization_for_dict_without_status():
+    component = main._normalize_health_component(
+        {
+            "stale_data_serving": "enabled",
+            "cached_response_serving": "enabled",
+            "minimal_response_generation": "enabled",
+        }
+    )
+    assert component["status"] == "healthy"
+    assert isinstance(component["details"], dict)
+
+
+@pytest.mark.asyncio
+async def test_health_services_have_strict_component_shape():
+    with patch.object(main.AirQualityService, "check_external_api_health", AsyncMock(return_value="healthy")), patch.object(
+        main.unified_weather_service, "check_weather_api_health", AsyncMock(return_value={"status": "healthy"})
+    ), patch.object(main, "get_connection_pool_manager") as pool_manager_mock:
+        pool_manager_mock.return_value.health_check_all = AsyncMock(return_value={"open_meteo": True, "weather_api": True})
+        transport = httpx.ASGITransport(app=main.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/health")
+            assert response.status_code == 200
+            payload = response.json()
+            for comp in payload["services"].values():
+                assert isinstance(comp, dict)
+                assert set(comp.keys()) == {"status", "details"}
+                assert comp["status"] in {"healthy", "degraded", "unhealthy"}
+                assert isinstance(comp["details"], dict)
