@@ -249,6 +249,38 @@ class PerformanceConfig:
 
 
 @dataclass
+class ApiTransportConfig:
+    """Unified HTTP transport policy for external requests."""
+    trust_env: bool = field(default_factory=lambda: os.getenv("API_TRANSPORT_TRUST_ENV", "false").lower() == "true")
+    connect_timeout: float = field(default_factory=lambda: float(os.getenv("API_TRANSPORT_CONNECT_TIMEOUT", "10.0")))
+    read_timeout: float = field(default_factory=lambda: float(os.getenv("API_TRANSPORT_READ_TIMEOUT", "30.0")))
+    write_timeout: float = field(default_factory=lambda: float(os.getenv("API_TRANSPORT_WRITE_TIMEOUT", "10.0")))
+    pool_timeout: float = field(default_factory=lambda: float(os.getenv("API_TRANSPORT_POOL_TIMEOUT", "5.0")))
+    max_retries: int = field(default_factory=lambda: int(os.getenv("API_TRANSPORT_MAX_RETRIES", "3")))
+    retry_delay: float = field(default_factory=lambda: float(os.getenv("API_TRANSPORT_RETRY_DELAY", "1.0")))
+    backoff_factor: float = field(default_factory=lambda: float(os.getenv("API_TRANSPORT_BACKOFF_FACTOR", "2.0")))
+    response_timeout: float = field(default_factory=lambda: float(os.getenv("API_RESPONSE_TIMEOUT", "10.0")))
+
+    def __post_init__(self):
+        if self.connect_timeout <= 0:
+            self.connect_timeout = 10.0
+        if self.read_timeout <= 0:
+            self.read_timeout = 30.0
+        if self.write_timeout <= 0:
+            self.write_timeout = 10.0
+        if self.pool_timeout <= 0:
+            self.pool_timeout = 5.0
+        if self.max_retries < 0:
+            self.max_retries = 3
+        if self.retry_delay <= 0:
+            self.retry_delay = 1.0
+        if self.backoff_factor < 1.0:
+            self.backoff_factor = 2.0
+        if self.response_timeout <= 0:
+            self.response_timeout = 10.0
+
+
+@dataclass
 class HistoryConfig:
     """Historical pipeline and anomaly detection configuration"""
     anomaly_baseline_window: int = field(default_factory=lambda: int(os.getenv("HISTORY_ANOMALY_BASELINE_WINDOW", "6")))
@@ -271,6 +303,7 @@ class ConfigManager:
         self.redis = RedisConfig()
         self.cache = CacheConfig()
         self.performance = PerformanceConfig()
+        self.api = ApiTransportConfig()
         self.history = HistoryConfig()
         self.weather_api = WeatherAPIConfig()
         self.request_optimization = RequestOptimizationConfig()

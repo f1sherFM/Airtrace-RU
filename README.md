@@ -167,6 +167,7 @@ curl "http://localhost:8000/v2/health"
 - Матрица совместимости и deprecation notes: `docs/api_v2_compatibility.md`.
 - UX smoke checklist для дашборда Now/Forecast/History: `docs/ux_smoke_checklist.md`.
 - A11y baseline checklist: `docs/accessibility_baseline.md`.
+- Unified HTTP transport policy: `docs/http_transport_policy.md`.
 
 ### Мониторинг производительности
 ```bash

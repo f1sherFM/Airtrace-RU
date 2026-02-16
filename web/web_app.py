@@ -15,6 +15,7 @@ from typing import Dict, Any, List, Optional
 import uvicorn
 from datetime import datetime
 import json
+from http_transport import create_async_client
 
 app = FastAPI(title="AirTrace RU Web Interface")
 
@@ -43,8 +44,12 @@ class AirQualityService:
     """Сервис для работы с API качества воздуха"""
     
     def __init__(self):
-        # Avoid proxy env influence for local backend calls (127.0.0.1:8000).
-        self.client = httpx.AsyncClient(timeout=30.0, trust_env=False)
+        # Unified transport policy with explicit trust_env handling.
+        self.client = create_async_client(
+            max_connections=10,
+            max_keepalive_connections=5,
+            read_timeout=30.0,
+        )
     
     async def get_current_data(self, lat: float, lon: float) -> Dict[str, Any]:
         """Получение текущих данных о качестве воздуха"""

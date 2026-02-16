@@ -33,6 +33,7 @@ from connection_pool import get_connection_pool_manager, ServiceType, APIRequest
 from weather_api_manager import weather_api_manager
 from config import config
 from confidence_scoring import ConfidenceInputs, calculate_confidence
+from http_transport import create_async_client
 
 logger = logging.getLogger(__name__)
 
@@ -99,11 +100,10 @@ class AirQualityService:
         
         # Fallback client for when connection pooling is disabled
         if not self.use_connection_pool:
-            self.client = httpx.AsyncClient(
-                timeout=30.0,
-                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
-                # Ignore system proxy env vars for service-to-service API calls.
-                trust_env=False
+            self.client = create_async_client(
+                max_connections=10,
+                max_keepalive_connections=5,
+                read_timeout=30.0,
             )
         else:
             self.client = None

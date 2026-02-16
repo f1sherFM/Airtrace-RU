@@ -17,9 +17,9 @@ import json
 import statistics
 
 import httpx
-from httpx import AsyncClient, Limits, Timeout
 
 from config import config
+from http_transport import create_async_client
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,7 @@ class PoolConfig:
     # Queue settings
     queue_timeout: float = 5.0
     max_queue_size: int = 100
+    trust_env: bool = False
 
 
 @dataclass
@@ -317,19 +318,14 @@ class ConnectionPool:
         self.config = config
         
         # HTTP client with connection pooling
-        self.client = AsyncClient(
-            limits=Limits(
-                max_connections=config.max_connections,
-                max_keepalive_connections=config.max_keepalive_connections
-            ),
-            timeout=Timeout(
-                connect=config.connect_timeout,
-                read=config.read_timeout,
-                write=config.write_timeout,
-                pool=config.pool_timeout
-            ),
-            # Prevent invalid system proxy env values from breaking all pool requests.
-            trust_env=False
+        self.client = create_async_client(
+            max_connections=config.max_connections,
+            max_keepalive_connections=config.max_keepalive_connections,
+            connect_timeout=config.connect_timeout,
+            read_timeout=config.read_timeout,
+            write_timeout=config.write_timeout,
+            pool_timeout=config.pool_timeout,
+            trust_env=config.trust_env,
         )
         
         # Pool state
@@ -710,18 +706,14 @@ class ConnectionPool:
             await self.client.aclose()
             
             # Create new client
-            self.client = AsyncClient(
-                limits=Limits(
-                    max_connections=self.config.max_connections,
-                    max_keepalive_connections=self.config.max_keepalive_connections
-                ),
-                timeout=Timeout(
-                    connect=self.config.connect_timeout,
-                    read=self.config.read_timeout,
-                    write=self.config.write_timeout,
-                    pool=self.config.pool_timeout
-                ),
-                trust_env=False
+            self.client = create_async_client(
+                max_connections=self.config.max_connections,
+                max_keepalive_connections=self.config.max_keepalive_connections,
+                connect_timeout=self.config.connect_timeout,
+                read_timeout=self.config.read_timeout,
+                write_timeout=self.config.write_timeout,
+                pool_timeout=self.config.pool_timeout,
+                trust_env=self.config.trust_env,
             )
             
             self.connection_created_time = time.time()
@@ -785,7 +777,16 @@ class ConnectionPoolManager:
     
     def __init__(self):
         self.pools: Dict[ServiceType, ConnectionPool] = {}
-        self.default_config = PoolConfig()
+        self.default_config = PoolConfig(
+            connect_timeout=config.api.connect_timeout,
+            read_timeout=config.api.read_timeout,
+            write_timeout=config.api.write_timeout,
+            pool_timeout=config.api.pool_timeout,
+            max_retries=config.api.max_retries,
+            retry_delay=config.api.retry_delay,
+            backoff_factor=config.api.backoff_factor,
+            trust_env=config.api.trust_env,
+        )
         
         # Initialize Open-Meteo pool
         self._initialize_open_meteo_pool()
@@ -795,13 +796,17 @@ class ConnectionPoolManager:
         open_meteo_config = PoolConfig(
             max_connections=20,
             max_keepalive_connections=10,
-            connect_timeout=10.0,
-            read_timeout=30.0,
-            max_retries=3,
-            retry_delay=1.0,
+            connect_timeout=config.api.connect_timeout,
+            read_timeout=config.api.read_timeout,
+            write_timeout=config.api.write_timeout,
+            pool_timeout=config.api.pool_timeout,
+            max_retries=config.api.max_retries,
+            retry_delay=config.api.retry_delay,
+            backoff_factor=config.api.backoff_factor,
             health_check_interval=60,
             connection_max_age=3600,
-            queue_timeout=5.0
+            queue_timeout=5.0,
+            trust_env=config.api.trust_env,
         )
         
         self.pools[ServiceType.OPEN_METEO] = ConnectionPool(
@@ -826,13 +831,17 @@ class ConnectionPoolManager:
         weather_api_config = PoolConfig(
             max_connections=15,
             max_keepalive_connections=8,
-            connect_timeout=10.0,
+            connect_timeout=config.api.connect_timeout,
             read_timeout=config.weather_api.timeout,
+            write_timeout=config.api.write_timeout,
+            pool_timeout=config.api.pool_timeout,
             max_retries=config.weather_api.max_retries,
-            retry_delay=1.0,
+            retry_delay=config.api.retry_delay,
+            backoff_factor=config.api.backoff_factor,
             health_check_interval=120,  # Less frequent health checks for external paid API
             connection_max_age=3600,
-            queue_timeout=5.0
+            queue_timeout=5.0,
+            trust_env=config.api.trust_env,
         )
         
         self.pools[ServiceType.WEATHER_API] = ConnectionPool(
