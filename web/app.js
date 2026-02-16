@@ -51,16 +51,29 @@ class AirTraceApp {
     async checkApiHealth() {
         try {
             const response = await fetch(`${this.apiBase}/health`);
-            const data = await response.json();
-            
-            if (data.status === 'healthy') {
-                this.updateStatus('healthy', 'API активен');
-            } else {
-                this.updateStatus('warning', 'API частично доступен');
+            if (!response.ok) {
+                throw new Error(`Health HTTP ${response.status}`);
             }
+            const data = await response.json();
+
+            // Reachability is primary for user-facing availability signal.
+            if (data.status === 'healthy' || data.status === 'degraded' || data.status === 'unhealthy') {
+                this.updateStatus('healthy', 'API активен');
+                return;
+            }
+            this.updateStatus('warning', 'API частично доступен');
         } catch (error) {
-            this.updateStatus('error', 'API недоступен');
-            console.error('Health check failed:', error);
+            // Fallback probe: backend might be alive even if /health failed.
+            try {
+                const probe = await fetch(`${this.apiBase}/version`);
+                if (!probe.ok) {
+                    throw new Error(`Version HTTP ${probe.status}`);
+                }
+                this.updateStatus('healthy', 'API активен');
+            } catch (probeError) {
+                this.updateStatus('error', 'API недоступен');
+                console.error('Health check failed:', error, probeError);
+            }
         }
     }
     

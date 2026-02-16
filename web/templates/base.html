@@ -167,9 +167,13 @@
                     {% endif %}
                     
                     <div class="flex items-center gap-2" aria-live="polite" aria-label="Состояние backend API">
-                        <span class="w-2 h-2 rounded-full {% if api_status == 'healthy' %}bg-green-500{% else %}bg-red-500{% endif %}"></span>
+                        <span class="w-2 h-2 rounded-full {% if api_reachable is defined and not api_reachable %}bg-red-500{% elif api_status == 'healthy' %}bg-green-500{% elif api_status == 'degraded' %}bg-yellow-400{% else %}bg-orange-400{% endif %}"></span>
                         <span class="text-xs">
-                            {% if api_status == 'healthy' %}API активен{% else %}API недоступен{% endif %}
+                            {% if api_reachable is defined and not api_reachable %}
+                                API недоступен
+                            {% else %}
+                                API активен
+                            {% endif %}
                         </span>
                     </div>
                 </div>

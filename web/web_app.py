@@ -114,9 +114,17 @@ class AirQualityService:
         try:
             response = await self.client.get(f"{API_BASE_URL}/health")
             response.raise_for_status()
-            return response.json()
-        except:
-            return {"status": "unhealthy"}
+            payload = response.json()
+            payload["reachable"] = True
+            return payload
+        except Exception:
+            # Fallback probe: backend may be reachable even if /health is degraded/unavailable.
+            try:
+                probe = await self.client.get(f"{API_BASE_URL}/version")
+                probe.raise_for_status()
+                return {"status": "degraded", "reachable": True}
+            except Exception:
+                return {"status": "unhealthy", "reachable": False}
 
     async def list_alert_rules(self) -> List[Dict[str, Any]]:
         try:
@@ -190,6 +198,17 @@ def format_time(timestamp: str) -> str:
         return dt.strftime('%H:%M')
     except:
         return "--:--"
+
+
+def normalize_api_status(status: Optional[str]) -> str:
+    normalized = (status or "").strip().lower()
+    if normalized in {"healthy", "ok", "up", "enabled", "active"}:
+        return "healthy"
+    if normalized in {"degraded", "warning", "unknown", "disabled"}:
+        return "degraded"
+    if normalized in {"unhealthy", "down", "failed", "error"}:
+        return "unhealthy"
+    return "degraded"
 
 def get_aqi_class(aqi: int) -> str:
     """Получение CSS класса для AQI"""
@@ -357,10 +376,12 @@ async def index(request: Request):
     """Главная страница"""
     health = await air_service.check_health()
     
+    api_reachable = bool(health.get("reachable", False))
     return templates.TemplateResponse("index.html", {
         "request": request,
         "cities": CITIES,
-        "api_status": health.get("status", "unknown"),
+        "api_status": normalize_api_status(health.get("status")),
+        "api_reachable": api_reachable,
         "title": "AirTrace RU — Мониторинг качества воздуха"
     })
 
@@ -609,7 +630,8 @@ async def api_health():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "backend_api": backend_health.get("status", "unknown"),
+        "backend_api": normalize_api_status(backend_health.get("status")),
+        "backend_reachable": bool(backend_health.get("reachable", False)),
         "cities_available": len(CITIES)
     }
 
