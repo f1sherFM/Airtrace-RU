@@ -104,3 +104,27 @@ erDiagram
   - `anomaly_type`
   - `anomaly_score`
   - `anomaly_baseline_aqi`
+
+## Confidence Scoring Formula (Issue 2.2)
+- Implemented in `confidence_scoring.py`.
+- Inputs:
+  - `data_source` in `{live, historical, forecast, fallback}`
+  - `source_available` (`true/false`)
+  - `cache_age_seconds` (>= 0)
+  - `fallback_used` (`true/false`)
+- Base score by source:
+  - `live = 0.90`
+  - `historical = 0.86`
+  - `forecast = 0.74`
+  - `fallback = 0.50`
+- Penalties:
+  - source unavailable: `-0.15`
+  - cache age: linear `-(min(0.30, cache_age_seconds / 21600 * 0.30))`
+  - fallback used: `-0.22`
+- Final score:
+  - `confidence = clamp(round(base - penalties, 3), 0.0, 1.0)`
+- Monotonic guarantees covered by property tests:
+  - score does not increase with larger `cache_age_seconds`
+  - score does not increase when `fallback_used=true`
+  - score does not increase when `source_available=false`
+  - source ordering preserved: `live >= historical >= forecast >= fallback`

@@ -104,3 +104,49 @@ def test_confidence_source_unavailable_penalty(data_source, cache_age_seconds, f
         )
     )
     assert score_unavailable <= score_available
+
+
+@given(
+    source_available=st.booleans(),
+    cache_age_seconds=st.integers(min_value=0, max_value=50000),
+    fallback_used=st.booleans(),
+)
+def test_confidence_source_priority_order(source_available, cache_age_seconds, fallback_used):
+    """
+    Confidence should preserve source priority:
+    live >= historical >= forecast >= fallback
+    for equal degradation inputs.
+    """
+    score_live, _ = calculate_confidence(
+        ConfidenceInputs(
+            data_source="live",
+            source_available=source_available,
+            cache_age_seconds=cache_age_seconds,
+            fallback_used=fallback_used,
+        )
+    )
+    score_historical, _ = calculate_confidence(
+        ConfidenceInputs(
+            data_source="historical",
+            source_available=source_available,
+            cache_age_seconds=cache_age_seconds,
+            fallback_used=fallback_used,
+        )
+    )
+    score_forecast, _ = calculate_confidence(
+        ConfidenceInputs(
+            data_source="forecast",
+            source_available=source_available,
+            cache_age_seconds=cache_age_seconds,
+            fallback_used=fallback_used,
+        )
+    )
+    score_fallback, _ = calculate_confidence(
+        ConfidenceInputs(
+            data_source="fallback",
+            source_available=source_available,
+            cache_age_seconds=cache_age_seconds,
+            fallback_used=fallback_used,
+        )
+    )
+    assert score_live >= score_historical >= score_forecast >= score_fallback

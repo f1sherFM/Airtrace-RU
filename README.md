@@ -129,7 +129,18 @@ curl "http://localhost:8000/weather/current?lat=53.4069&lon=58.9794"
   },
   "recommendations": "Отличное качество воздуха...",
   "nmu_risk": "low",
-  "health_warnings": []
+  "health_warnings": [],
+  "data_source": "live",
+  "freshness": "fresh",
+  "confidence": 0.9,
+  "metadata": {
+    "data_source": "live",
+    "freshness": "fresh",
+    "confidence": 0.9,
+    "confidence_explanation": "confidence derived from source=live, source_available, cache_age=0s, no_fallback",
+    "fallback_used": false,
+    "cache_age_seconds": 0
+  }
 }
 ```
 
