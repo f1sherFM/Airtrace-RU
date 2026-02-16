@@ -1,0 +1,86 @@
+{
+  "title": "AirTrace Runtime Overview",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "rate(airtrace_requests_total[5m])",
+          "legendFormat": "req/s"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Latency p95/p99",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "airtrace_request_duration_seconds{quantile=\"0.95\"}",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "airtrace_request_duration_seconds{quantile=\"0.99\"}",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Error Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "airtrace_error_rate",
+          "legendFormat": "error_rate"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "External API Success",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "airtrace_external_api_success_rate",
+          "legendFormat": "external_success"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Cache Hit Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "airtrace_cache_hit_rate",
+          "legendFormat": "cache_hit_rate"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Resource CPU/Memory",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "airtrace_cpu_usage_percent",
+          "legendFormat": "cpu%"
+        },
+        {
+          "expr": "airtrace_memory_usage_percent",
+          "legendFormat": "mem%"
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": []
+  }
+}
