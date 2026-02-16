@@ -7,6 +7,7 @@ AirTrace RU - Веб-приложение на Python
 import httpx
 import csv
 import io
+import sys
 from fastapi import FastAPI, Request, Form, HTTPException, Query
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +17,13 @@ import uvicorn
 from datetime import datetime
 import json
 import os
+from pathlib import Path
+
+# Ensure repository root is importable when launched from ./web.
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from http_transport import create_async_client
 
 app = FastAPI(title="AirTrace RU Web Interface")
