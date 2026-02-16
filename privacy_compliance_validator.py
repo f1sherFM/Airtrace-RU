@@ -16,8 +16,6 @@ from datetime import datetime, timezone
 from dataclasses import dataclass
 from enum import Enum
 
-from config import config
-
 logger = logging.getLogger(__name__)
 
 
@@ -322,22 +320,38 @@ class PrivacyComplianceValidator:
     
     def _is_properly_anonymized(self, cache_key: str) -> bool:
         """Check if cache key appears to be properly anonymized"""
+        hash_coordinates_enabled, coordinate_precision = self._get_cache_privacy_settings()
+
         # Check if it's a hash (hex string of reasonable length)
         if re.match(r'^[a-f0-9]{16,}$', cache_key.lower()):
             return True
         
         # Check if it uses coordinate precision rounding
-        if config.cache.hash_coordinates:
+        if hash_coordinates_enabled:
             return True
         
         # Check if coordinates are rounded to low precision
         coordinate_matches = re.findall(r'-?\d+\.\d+', cache_key)
         for match in coordinate_matches:
             decimal_places = len(match.split('.')[1])
-            if decimal_places > config.cache.coordinate_precision:
+            if decimal_places > coordinate_precision:
                 return False
         
         return True
+
+    def _get_cache_privacy_settings(self) -> Tuple[bool, int]:
+        """
+        Lazily resolve cache privacy settings to avoid circular imports during startup.
+        Falls back to safe defaults if config is not yet available.
+        """
+        try:
+            from config import config as runtime_config
+
+            hash_coordinates = bool(getattr(runtime_config.cache, "hash_coordinates", True))
+            precision = int(getattr(runtime_config.cache, "coordinate_precision", 3))
+            return hash_coordinates, max(1, precision)
+        except Exception:
+            return True, 3
     
     def _contains_sensitive_key(self, data: Any, key: str) -> bool:
         """Recursively check if data contains sensitive key"""
