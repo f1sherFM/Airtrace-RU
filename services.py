@@ -97,19 +97,24 @@ class AirQualityService:
         self.base_url = "https://air-quality-api.open-meteo.com/v1/air-quality"
         # Use connection pool manager instead of direct httpx client
         self.use_connection_pool = config.performance.connection_pooling_enabled
-        
-        # Fallback client for when connection pooling is disabled
-        if not self.use_connection_pool:
-            self.client = create_async_client(
-                max_connections=10,
-                max_keepalive_connections=5,
-                read_timeout=30.0,
-            )
-        else:
-            self.client = None
+        # Keep a direct client for graceful fallback when pool is saturated.
+        self.client = create_async_client(
+            max_connections=10,
+            max_keepalive_connections=5,
+            read_timeout=30.0,
+        )
         
         self.cache_manager = MultiLevelCacheManager()
         self.aqi_calculator = AQICalculator()
+
+    @staticmethod
+    def _is_pool_saturation_error(error: Exception) -> bool:
+        message = str(error).lower()
+        return (
+            "timed out in queue" in message
+            or "request queue full" in message
+            or "circuit breaker open" in message
+        )
     
     async def __aenter__(self):
         """Асинхронный контекстный менеджер - вход"""
@@ -159,11 +164,23 @@ class AirQualityService:
                     url=self.base_url,
                     params=params
                 )
-                api_response = await get_connection_pool_manager().execute_request(
-                    ServiceType.OPEN_METEO, 
-                    api_request
-                )
-                api_data = api_response.data
+                try:
+                    api_response = await get_connection_pool_manager().execute_request(
+                        ServiceType.OPEN_METEO,
+                        api_request
+                    )
+                    api_data = api_response.data
+                except Exception as pool_error:
+                    if not self._is_pool_saturation_error(pool_error):
+                        raise
+                    logger.warning(
+                        "Connection pool saturated for current air quality request; "
+                        "falling back to direct HTTP client: %s",
+                        pool_error,
+                    )
+                    response = await self.client.get(self.base_url, params=params)
+                    response.raise_for_status()
+                    api_data = response.json()
             else:
                 response = await self.client.get(self.base_url, params=params)
                 response.raise_for_status()
@@ -218,11 +235,23 @@ class AirQualityService:
                     url=self.base_url,
                     params=params
                 )
-                api_response = await get_connection_pool_manager().execute_request(
-                    ServiceType.OPEN_METEO, 
-                    api_request
-                )
-                api_data = api_response.data
+                try:
+                    api_response = await get_connection_pool_manager().execute_request(
+                        ServiceType.OPEN_METEO,
+                        api_request
+                    )
+                    api_data = api_response.data
+                except Exception as pool_error:
+                    if not self._is_pool_saturation_error(pool_error):
+                        raise
+                    logger.warning(
+                        "Connection pool saturated for forecast request; "
+                        "falling back to direct HTTP client: %s",
+                        pool_error,
+                    )
+                    response = await self.client.get(self.base_url, params=params)
+                    response.raise_for_status()
+                    api_data = response.json()
             else:
                 response = await self.client.get(self.base_url, params=params)
                 response.raise_for_status()
@@ -595,12 +624,29 @@ class AirQualityService:
                     params=test_params,
                     timeout=10.0
                 )
-                api_response = await get_connection_pool_manager().execute_request(
-                    ServiceType.OPEN_METEO, 
-                    api_request
-                )
-                data = api_response.data
-                status_code = api_response.status_code
+                try:
+                    api_response = await get_connection_pool_manager().execute_request(
+                        ServiceType.OPEN_METEO,
+                        api_request
+                    )
+                    data = api_response.data
+                    status_code = api_response.status_code
+                except Exception as pool_error:
+                    if not self._is_pool_saturation_error(pool_error):
+                        raise
+                    logger.warning(
+                        "Connection pool saturated during external API health check; "
+                        "falling back to direct HTTP client: %s",
+                        pool_error,
+                    )
+                    response = await self.client.get(
+                        self.base_url,
+                        params=test_params,
+                        timeout=10.0,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    status_code = response.status_code
             else:
                 response = await self.client.get(
                     self.base_url,
