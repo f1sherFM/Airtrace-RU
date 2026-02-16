@@ -257,6 +257,7 @@ def get_action_plan(aqi_value: int, nmu_risk: str) -> Dict[str, Any]:
         "low": {
             "title": "Что делать сейчас: Низкий риск",
             "color": "green",
+            "risk_label": "low",
             "general": [
                 "Обычная активность на улице допустима.",
                 "Проветривание помещений можно делать в стандартном режиме.",
@@ -269,6 +270,7 @@ def get_action_plan(aqi_value: int, nmu_risk: str) -> Dict[str, Any]:
         "medium": {
             "title": "Что делать сейчас: Умеренный риск",
             "color": "yellow",
+            "risk_label": "medium",
             "general": [
                 "Уменьшите интенсивные тренировки на открытом воздухе.",
                 "Планируйте прогулки в часы с более чистым воздухом.",
@@ -281,6 +283,7 @@ def get_action_plan(aqi_value: int, nmu_risk: str) -> Dict[str, Any]:
         "high": {
             "title": "Что делать сейчас: Высокий риск",
             "color": "orange",
+            "risk_label": "high",
             "general": [
                 "Избегайте длительных нагрузок на улице.",
                 "Закрывайте окна на период пикового загрязнения.",
@@ -293,6 +296,7 @@ def get_action_plan(aqi_value: int, nmu_risk: str) -> Dict[str, Any]:
         "critical": {
             "title": "Что делать сейчас: Критический риск",
             "color": "red",
+            "risk_label": "critical",
             "general": [
                 "Отложите прогулки и физическую активность на улице.",
                 "Максимально ограничьте приток наружного воздуха.",
@@ -303,7 +307,9 @@ def get_action_plan(aqi_value: int, nmu_risk: str) -> Dict[str, Any]:
             ],
         },
     }
-    return plans[risk]
+    plan = plans[risk]
+    plan["immediate"] = [plan["general"][0], plan["sensitive"][0]]
+    return plan
 
 def prepare_export_data(time_series_data: List[Dict[str, Any]], city_name: str) -> List[Dict[str, Any]]:
     """Подготовка данных для экспорта"""

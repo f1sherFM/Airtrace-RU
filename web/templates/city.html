@@ -105,12 +105,33 @@
     </div>
 
     <!-- Action-Oriented Recommendations -->
-    <div id="forecast-section" class="lg:col-span-3 scroll-mt-24">
+    <div class="lg:col-span-3">
         <div class="glass-enhanced rounded-3xl p-6 border border-white/20">
             <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
                 <i data-lucide="siren" class="w-5 h-5 text-amber-300"></i>
                 {{ action_plan.title }}
             </h3>
+            <div class="mb-4 flex items-center gap-2 text-xs">
+                <span class="px-2 py-1 rounded-full border
+                    {% if action_plan.risk_label == 'critical' %}bg-red-500/25 border-red-400 text-red-100{% elif action_plan.risk_label == 'high' %}bg-orange-500/25 border-orange-300 text-orange-100{% elif action_plan.risk_label == 'medium' %}bg-yellow-500/25 border-yellow-300 text-yellow-100{% else %}bg-green-500/25 border-green-300 text-green-100{% endif %}">
+                    уровень: {{ action_plan.risk_label }}
+                </span>
+                <span class="opacity-80">Приоритет: действия в ближайшие 60 минут</span>
+            </div>
+            <div class="rounded-2xl p-4 mb-5 bg-white/10 border border-white/20">
+                <h4 class="font-semibold text-sm mb-2 flex items-center gap-2">
+                    <i data-lucide="zap" class="w-4 h-4 text-amber-300"></i>
+                    Что сделать в ближайшие 60 минут
+                </h4>
+                <ul class="space-y-2 text-sm">
+                    {% for item in action_plan.immediate %}
+                    <li class="flex items-start gap-2">
+                        <i data-lucide="arrow-right-circle" class="w-4 h-4 mt-0.5 text-amber-300 shrink-0"></i>
+                        <span>{{ item }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
             <p class="text-sm opacity-80 mb-5">
                 Ниже рекомендации разделены по группам, чтобы сразу выбрать безопасное действие.
             </p>
@@ -178,7 +199,7 @@
 
     <!-- Forecast Section -->
     {% if forecast %}
-    <div id="history-section" class="lg:col-span-3 scroll-mt-24">
+    <div id="forecast-section" class="lg:col-span-3 scroll-mt-24">
         <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
             <i data-lucide="calendar" class="w-5 h-5"></i>
             Прогноз (Forecast): ближайшие 24 часа
@@ -200,7 +221,7 @@
     {% endif %}
 
     <!-- Data Export Section -->
-    <div class="lg:col-span-3">
+    <div id="history-section" class="lg:col-span-3 scroll-mt-24">
         <div class="glass-enhanced rounded-3xl p-6">
             <h3 class="text-xl font-semibold mb-4 flex items-center gap-2 text-shadow">
                 <i data-lucide="download" class="w-5 h-5 text-blue-400"></i>
