@@ -20,6 +20,7 @@ from schemas import (
 )
 from confidence_scoring import ConfidenceInputs, calculate_confidence
 from anomaly_detection import HourlyAnomalyDetector
+from config import config
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,11 @@ class InMemoryHistoricalSnapshotStore:
 
     def __init__(self):
         self._records: Dict[str, HistoricalSnapshotRecord] = {}
-        self._anomaly_detector = HourlyAnomalyDetector()
+        self._anomaly_detector = HourlyAnomalyDetector(
+            baseline_window=config.history.anomaly_baseline_window,
+            min_absolute_delta=config.history.anomaly_min_absolute_delta,
+            min_relative_delta=config.history.anomaly_min_relative_delta,
+        )
 
     async def write_snapshot(self, dedupe_key: str, record: HistoricalSnapshotRecord) -> bool:
         """Write snapshot and return True if inserted, False if duplicate."""

@@ -248,6 +248,22 @@ class PerformanceConfig:
     debug_mode: bool = field(default_factory=lambda: os.getenv("DEBUG", "false").lower() == "true")
 
 
+@dataclass
+class HistoryConfig:
+    """Historical pipeline and anomaly detection configuration"""
+    anomaly_baseline_window: int = field(default_factory=lambda: int(os.getenv("HISTORY_ANOMALY_BASELINE_WINDOW", "6")))
+    anomaly_min_absolute_delta: float = field(default_factory=lambda: float(os.getenv("HISTORY_ANOMALY_MIN_ABSOLUTE_DELTA", "35.0")))
+    anomaly_min_relative_delta: float = field(default_factory=lambda: float(os.getenv("HISTORY_ANOMALY_MIN_RELATIVE_DELTA", "0.55")))
+
+    def __post_init__(self):
+        if self.anomaly_baseline_window <= 0:
+            self.anomaly_baseline_window = 6
+        if self.anomaly_min_absolute_delta <= 0:
+            self.anomaly_min_absolute_delta = 35.0
+        if self.anomaly_min_relative_delta <= 0:
+            self.anomaly_min_relative_delta = 0.55
+
+
 class ConfigManager:
     """Central configuration manager for the application"""
     
@@ -255,6 +271,7 @@ class ConfigManager:
         self.redis = RedisConfig()
         self.cache = CacheConfig()
         self.performance = PerformanceConfig()
+        self.history = HistoryConfig()
         self.weather_api = WeatherAPIConfig()
         self.request_optimization = RequestOptimizationConfig()
         self._validate_configuration()
@@ -353,6 +370,12 @@ class ConfigManager:
         logger.info(f"  Request optimization enabled: {self.performance.request_optimization_enabled}")
         logger.info(f"  Request batching enabled: {self.request_optimization.batching_enabled}")
         logger.info(f"  Request prefetching enabled: {self.request_optimization.prefetching_enabled}")
+        logger.info(
+            "  History anomaly thresholds: "
+            f"window={self.history.anomaly_baseline_window}, "
+            f"abs_delta={self.history.anomaly_min_absolute_delta}, "
+            f"rel_delta={self.history.anomaly_min_relative_delta}"
+        )
     
     def _initialize_audit_manager(self):
         """Initialize configuration audit manager"""

@@ -104,6 +104,10 @@ erDiagram
   - `anomaly_type`
   - `anomaly_score`
   - `anomaly_baseline_aqi`
+- Configurable thresholds (env):
+  - `HISTORY_ANOMALY_BASELINE_WINDOW` (default: `6`)
+  - `HISTORY_ANOMALY_MIN_ABSOLUTE_DELTA` (default: `35.0`)
+  - `HISTORY_ANOMALY_MIN_RELATIVE_DELTA` (default: `0.55`)
 
 ## Confidence Scoring Formula (Issue 2.2)
 - Implemented in `confidence_scoring.py`.
