@@ -9,6 +9,7 @@ import httpx
 import asyncio
 import logging
 import re
+import math
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta, timezone
 import hashlib
@@ -207,23 +208,30 @@ class AirQualityService:
             logger.error(f"Unexpected error processing air quality data: {e}")
             raise Exception("Ошибка обработки данных о качестве воздуха")
     
-    async def get_forecast_air_quality(self, lat: float, lon: float) -> List[AirQualityData]:
+    async def get_forecast_air_quality(self, lat: float, lon: float, hours: int = 24) -> List[AirQualityData]:
         """
         Получение прогноза качества воздуха на 24 часа.
         
         Возвращает список данных с почасовым прогнозом.
         """
         try:
+            forecast_hours = max(1, min(int(hours), 168))
+            forecast_days = max(1, min(7, math.ceil(forecast_hours / 24)))
+
             params = {
                 "latitude": lat,
                 "longitude": lon,
                 "hourly": "pm10,pm2_5,nitrogen_dioxide,sulphur_dioxide,ozone",
-                "forecast_days": 1,
+                "forecast_days": forecast_days,
                 "timezone": "Europe/Moscow"
             }
             
             # Логирование внешнего запроса с координатами
-            request_url = f"{self.base_url}?latitude={lat}&longitude={lon}&hourly=pm10,pm2_5,nitrogen_dioxide,sulphur_dioxide,ozone&forecast_days=1&timezone=Europe/Moscow"
+            request_url = (
+                f"{self.base_url}?latitude={lat}&longitude={lon}"
+                f"&hourly=pm10,pm2_5,nitrogen_dioxide,sulphur_dioxide,ozone"
+                f"&forecast_days={forecast_days}&timezone=Europe/Moscow"
+            )
             # ✅ FIX #9: Mask coordinates in logs
             masked_url = mask_coordinates(request_url)
             self._log_external_request(masked_url, has_coordinates=True)
@@ -257,7 +265,8 @@ class AirQualityService:
                 response.raise_for_status()
                 api_data = response.json()
             
-            return await self._process_forecast_data(api_data, lat, lon)
+            processed = await self._process_forecast_data(api_data, lat, lon)
+            return processed[:forecast_hours]
             
         except httpx.RequestError as e:
             logger.error(f"Network error fetching forecast data: {e}")

@@ -74,12 +74,12 @@ class AirQualityService:
         except httpx.HTTPStatusError as e:
             raise HTTPException(status_code=e.response.status_code, detail=f"Ошибка API: {e}")
     
-    async def get_forecast_data(self, lat: float, lon: float) -> list:
+    async def get_forecast_data(self, lat: float, lon: float, hours: int = 24) -> list:
         """Получение прогноза качества воздуха"""
         try:
             response = await self.client.get(
                 f"{API_BASE_URL}/weather/forecast",
-                params={"lat": lat, "lon": lon}
+                params={"lat": lat, "lon": lon, "hours": hours}
             )
             response.raise_for_status()
             return response.json()
@@ -113,7 +113,7 @@ class AirQualityService:
     async def get_time_series_data(self, lat: float, lon: float, hours: int = 24) -> List[Dict[str, Any]]:
         """Получение реальных почасовых данных на основе прогноза без симуляции"""
         try:
-            forecast_data = await self.get_forecast_data(lat, lon)
+            forecast_data = await self.get_forecast_data(lat, lon, hours=hours)
 
             if not forecast_data:
                 return []

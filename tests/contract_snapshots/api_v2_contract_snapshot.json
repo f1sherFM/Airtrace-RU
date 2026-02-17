@@ -737,6 +737,20 @@
               "title": "Lon",
               "type": "number"
             }
+          },
+          {
+            "description": "Горизонт прогноза в часах (1..168)",
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "description": "Горизонт прогноза в часах (1..168)",
+              "maximum": 168,
+              "minimum": 1,
+              "title": "Hours",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -995,6 +1009,20 @@
               "minimum": -180,
               "title": "Lon",
               "type": "number"
+            }
+          },
+          {
+            "description": "Горизонт прогноза в часах (1..168)",
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "description": "Горизонт прогноза в часах (1..168)",
+              "maximum": 168,
+              "minimum": 1,
+              "title": "Hours",
+              "type": "integer"
             }
           }
         ],

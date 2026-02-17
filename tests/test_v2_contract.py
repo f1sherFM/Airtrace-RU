@@ -41,6 +41,20 @@ async def test_v2_current_and_forecast_operational():
 
 
 @pytest.mark.asyncio
+async def test_v2_forecast_supports_custom_hours():
+    sample = _sample_air_quality()
+    with patch.object(main.unified_weather_service, "get_forecast_combined_data", AsyncMock(return_value=[sample] * 72)) as forecast_mock:
+        transport = httpx.ASGITransport(app=main.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/v2/forecast?lat=55.7558&lon=37.6176&hours=72")
+            assert response.status_code == 200
+            payload = response.json()
+            assert isinstance(payload, list)
+            assert len(payload) == 72
+            forecast_mock.assert_awaited_with(55.7558, 37.6176, hours=72)
+
+
+@pytest.mark.asyncio
 async def test_v2_history_operational():
     store = InMemoryHistoricalSnapshotStore()
     store._records["k1"] = HistoricalSnapshotRecord(

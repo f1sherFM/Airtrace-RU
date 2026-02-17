@@ -121,7 +121,7 @@ class UnifiedWeatherService:
         
         return combined_data
     
-    async def get_forecast_combined_data(self, lat: float, lon: float) -> List[AirQualityData]:
+    async def get_forecast_combined_data(self, lat: float, lon: float, hours: int = 24) -> List[AirQualityData]:
         """
         Get forecast air quality data combined with weather information.
         
@@ -129,7 +129,7 @@ class UnifiedWeatherService:
         """
         # Get air quality forecast (this is the primary data)
         try:
-            forecast_data = await self.air_quality_service.get_forecast_air_quality(lat, lon)
+            forecast_data = await self.air_quality_service.get_forecast_air_quality(lat, lon, hours=hours)
         except Exception as e:
             logger.error(f"Failed to get air quality forecast: {e}")
             raise

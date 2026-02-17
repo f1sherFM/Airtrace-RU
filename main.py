@@ -566,10 +566,12 @@ async def get_current_air_quality_v2(
 @app.get("/weather/forecast", response_model=list[AirQualityData])
 async def get_forecast_air_quality(
     lat: float = Query(..., ge=-90, le=90, description="Широта"),
-    lon: float = Query(..., ge=-180, le=180, description="Долгота")
+    lon: float = Query(..., ge=-180, le=180, description="Долгота"),
+    hours: int = Query(24, ge=1, le=168, description="Горизонт прогноза в часах (1..168)")
 ):
     """
-    Получение прогноза качества воздуха на 24 часа с дополнительной информацией о погоде.
+    Получение почасового прогноза качества воздуха (1..168 часов)
+    с дополнительной информацией о погоде.
     
     Возвращает массив данных с почасовым прогнозом AQI индексов,
     рассчитанных по российским стандартам ПДК, с данными о погоде при их доступности.
@@ -593,7 +595,7 @@ async def get_forecast_air_quality(
         try:
             # Try to get fresh data with timeout
             data = await asyncio.wait_for(
-                unified_weather_service.get_forecast_combined_data(lat, lon),
+                unified_weather_service.get_forecast_combined_data(lat, lon, hours=hours),
                 timeout=config.api.response_timeout if hasattr(config, 'api') else 15.0
             )
             
@@ -692,9 +694,10 @@ async def get_forecast_air_quality(
 async def get_forecast_air_quality_v2(
     lat: float = Query(..., ge=-90, le=90, description="Широта"),
     lon: float = Query(..., ge=-180, le=180, description="Долгота"),
+    hours: int = Query(24, ge=1, le=168, description="Горизонт прогноза в часах (1..168)"),
 ):
     """v2 version of forecast endpoint."""
-    return await get_forecast_air_quality(lat=lat, lon=lon)
+    return await get_forecast_air_quality(lat=lat, lon=lon, hours=hours)
 
 
 @app.get("/history", response_model=HistoryQueryResponse)
