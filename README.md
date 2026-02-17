@@ -169,6 +169,7 @@ curl "http://localhost:8000/v2/health"
 - UX smoke checklist для дашборда Now/Forecast/History: `docs/ux_smoke_checklist.md`.
 - A11y baseline checklist: `docs/accessibility_baseline.md`.
 - Unified HTTP transport policy: `docs/http_transport_policy.md`.
+- Health/readiness/liveness probes: `docs/health_probes.md`.
 - Runtime SLO and dashboard assets: `docs/slo_runtime_control.md`, `observability/grafana/airtrace_runtime_overview.json`.
 - Load/soak suite: `tools/load/run_load_suite.py`, `docs/load_soak_testing.md`.
 

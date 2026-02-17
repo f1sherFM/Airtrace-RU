@@ -379,6 +379,39 @@ def _normalize_health_component(value):
     return {"status": "degraded", "details": {"raw": value}}
 
 
+def _is_optional_health_component(name: str) -> bool:
+    if name.startswith("pool_"):
+        return True
+    return name in {
+        "external_api",
+        "weather_api",
+        "cache",
+        "connection_pools",
+        "rate_limiting",
+        "fallback_capabilities",
+    }
+
+
+def _derive_overall_health_status(normalized_services: dict) -> str:
+    critical_statuses = []
+    optional_statuses = []
+
+    for name, component in normalized_services.items():
+        status = _normalize_health_status(component.get("status", "degraded"))
+        if _is_optional_health_component(name):
+            optional_statuses.append(status)
+        else:
+            critical_statuses.append(status)
+
+    if any(status == "unhealthy" for status in critical_statuses):
+        return "unhealthy"
+    if any(status == "degraded" for status in critical_statuses):
+        return "degraded"
+    if any(status in {"unhealthy", "degraded"} for status in optional_statuses):
+        return "degraded"
+    return "healthy"
+
+
 @app.get("/", include_in_schema=False)
 async def root():
     """Корневой эндпоинт с информацией об API"""
@@ -1238,14 +1271,7 @@ async def health_check():
         logger.info(f"Health check completed - Overall status: {overall_status}")
         
         normalized_services = {name: _normalize_health_component(value) for name, value in services_status.items()}
-        overall_from_components = "healthy"
-        for comp in normalized_services.values():
-            st = comp["status"]
-            if st == "unhealthy":
-                overall_from_components = "unhealthy"
-                break
-            if st == "degraded":
-                overall_from_components = "degraded"
+        overall_from_components = _derive_overall_health_status(normalized_services)
         normalized_overall = _normalize_health_status(overall_status)
         if overall_from_components == "unhealthy":
             normalized_overall = "unhealthy"
@@ -1278,6 +1304,54 @@ async def health_check():
 async def health_check_v2():
     """v2 normalized health endpoint."""
     return await health_check()
+
+
+@app.get("/health/liveness", include_in_schema=False)
+async def health_liveness():
+    """Liveness probe: process is up and can serve requests."""
+    return {
+        "status": "healthy",
+        "service": "airtrace-api",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.get("/health/readiness", include_in_schema=False)
+async def health_readiness():
+    """
+    Readiness probe: API can serve traffic.
+    Degraded state is considered ready; unhealthy is not ready.
+    """
+    health_payload = await health_check()
+    overall = _normalize_health_status(health_payload.status)
+    ready = overall != "unhealthy"
+
+    reasons = []
+    for name, component in health_payload.services.items():
+        status = _normalize_health_status(component.get("status", "degraded"))
+        if _is_optional_health_component(name):
+            continue
+        if status == "unhealthy":
+            reasons.append(f"{name}:unhealthy")
+
+    return {
+        "status": "ready" if ready else "not_ready",
+        "overall": overall,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "reasons": reasons,
+    }
+
+
+@app.get("/v2/liveness", include_in_schema=False)
+async def health_liveness_v2():
+    """v2 alias for liveness probe."""
+    return await health_liveness()
+
+
+@app.get("/v2/readiness", include_in_schema=False)
+async def health_readiness_v2():
+    """v2 alias for readiness probe."""
+    return await health_readiness()
 
 
 @app.exception_handler(HTTPException)
