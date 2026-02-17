@@ -265,8 +265,7 @@ class AirQualityService:
                 response.raise_for_status()
                 api_data = response.json()
             
-            processed = await self._process_forecast_data(api_data, lat, lon)
-            return processed[:forecast_hours]
+            return await self._process_forecast_data(api_data, lat, lon, max_hours=forecast_hours)
             
         except httpx.RequestError as e:
             logger.error(f"Network error fetching forecast data: {e}")
@@ -411,7 +410,13 @@ class AirQualityService:
             ),
         )
     
-    async def _process_forecast_data(self, api_data: Dict[str, Any], lat: float, lon: float) -> List[AirQualityData]:
+    async def _process_forecast_data(
+        self,
+        api_data: Dict[str, Any],
+        lat: float,
+        lon: float,
+        max_hours: Optional[int] = None,
+    ) -> List[AirQualityData]:
         """Обработка прогнозных данных от Open-Meteo API с интеграцией WeatherAPI"""
         # Валидация структуры ответа
         if not isinstance(api_data, dict):
@@ -434,8 +439,8 @@ class AirQualityService:
         # Get weather data once for the location (current weather applies to forecast)
         weather_info = await self._get_weather_data(lat, lon)
         
-        # Ограничиваем до 24 часов
-        for i in range(min(24, len(times))):
+        hour_limit = min(len(times), max_hours) if max_hours is not None else len(times)
+        for i in range(hour_limit):
             pollutants = PollutantData(
                 pm2_5=hourly_data.get("pm2_5", [None])[i],
                 pm10=hourly_data.get("pm10", [None])[i],

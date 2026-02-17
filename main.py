@@ -589,7 +589,7 @@ async def get_forecast_air_quality(
             logger.warning(f"Coordinates outside Russian territory requested for forecast")
         
         degradation_manager = get_graceful_degradation_manager()
-        cache_key = f"forecast_{lat}_{lon}"
+        cache_key = f"forecast_{lat}_{lon}_{hours}h"
         
         # Check if we should serve stale data due to API slowness
         try:
@@ -679,7 +679,7 @@ async def get_forecast_air_quality(
         
         # Final fallback - try to serve any available data
         degradation_manager = get_graceful_degradation_manager()
-        cache_key = f"forecast_{lat}_{lon}"
+        cache_key = f"forecast_{lat}_{lon}_{hours}h"
         stale_data = await degradation_manager.get_stale_data(cache_key)
         if stale_data:
             logger.info("Serving stale forecast data as final fallback")
