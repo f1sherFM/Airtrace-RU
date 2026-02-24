@@ -238,6 +238,16 @@ class PerformanceConfig:
     connection_pooling_enabled: bool = field(default_factory=lambda: os.getenv("PERFORMANCE_CONNECTION_POOLING_ENABLED", "true").lower() == "true")
     monitoring_enabled: bool = field(default_factory=lambda: os.getenv("PERFORMANCE_MONITORING_ENABLED", "false").lower() == "true")
     request_optimization_enabled: bool = field(default_factory=lambda: os.getenv("PERFORMANCE_REQUEST_OPTIMIZATION_ENABLED", "true").lower() == "true")
+    rate_limit_trust_forwarded_headers: bool = field(
+        default_factory=lambda: os.getenv("PERFORMANCE_RATE_LIMIT_TRUST_FORWARDED_HEADERS", "false").lower() == "true"
+    )
+    rate_limit_trusted_proxy_ips: List[str] = field(
+        default_factory=lambda: [
+            item.strip()
+            for item in os.getenv("PERFORMANCE_RATE_LIMIT_TRUSTED_PROXY_IPS", "").split(",")
+            if item.strip()
+        ]
+    )
     
     # Graceful degradation settings
     fallback_to_memory: bool = field(default_factory=lambda: os.getenv("PERFORMANCE_FALLBACK_TO_MEMORY", "true").lower() == "true")

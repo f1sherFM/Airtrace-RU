@@ -21,7 +21,7 @@ class TestBasicSetup:
         """Тест создания FastAPI приложения"""
         assert app is not None
         assert app.title == "AirTrace RU API"
-        assert app.version == "1.0.0"
+        assert app.version == "0.3.1"
     
     def test_imports(self):
         """Тест импорта всех основных модулей"""
@@ -44,7 +44,7 @@ class TestBasicSetup:
         
         data = response.json()
         assert data["service"] == "AirTrace RU Backend"
-        assert data["version"] == "1.0.0"
+        assert data["version"] == "0.3.1"
         assert "endpoints" in data
     
     def test_openapi_docs(self, client: TestClient):

@@ -24,4 +24,4 @@ console.log({ health, now });
 
 ## Versioning
 
-Current starter version: `0.1.0` (see `package.json`).
+Current starter version: `0.3.1` (see `package.json`).

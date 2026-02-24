@@ -27,4 +27,4 @@ with AirTraceClient(base_url="http://localhost:8000", retries=2) as client:
 
 ## Versioning
 
-Starter package version: `0.1.0` in `pyproject.toml`.
+Starter package version: `0.3.1` in `pyproject.toml`.

@@ -8,7 +8,7 @@ from pathlib import Path
 def test_python_sdk_has_pip_ready_skeleton_and_version():
     pyproject = Path("sdk/python/pyproject.toml").read_text(encoding="utf-8")
     assert 'name = "airtrace-ru-sdk"' in pyproject
-    assert 'version = "0.1.0"' in pyproject
+    assert 'version = "0.3.1"' in pyproject
     assert "httpx" in pyproject
 
     init_file = Path("sdk/python/src/airtrace_sdk/__init__.py").read_text(encoding="utf-8")

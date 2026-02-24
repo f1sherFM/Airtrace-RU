@@ -435,6 +435,87 @@ class TestIPRateLimiting:
         assert len(middleware.ip_request_counts) <= 1001  # Allow small margin
 
 
+class TestRateLimitMiddlewareSecurityAndPathMatching:
+    """Regression tests for rate-limit bypass and IP spoofing fixes."""
+
+    def test_skip_path_root_matches_only_root(self):
+        from fastapi import FastAPI
+        from rate_limit_middleware import RateLimitMiddleware
+
+        middleware = RateLimitMiddleware(app=FastAPI(), skip_paths=["/"])
+
+        assert middleware._should_skip_path("/")
+        assert not middleware._should_skip_path("/api/v1/air-quality")
+
+    def test_skip_path_does_not_use_substring_matching(self):
+        from fastapi import FastAPI
+        from rate_limit_middleware import RateLimitMiddleware
+
+        middleware = RateLimitMiddleware(app=FastAPI(), skip_paths=["/docs", "/openapi.json"])
+
+        assert middleware._should_skip_path("/docs")
+        assert middleware._should_skip_path("/docs/oauth2-redirect")
+        assert not middleware._should_skip_path("/api/docs-backup")
+        assert not middleware._should_skip_path("/docsx")
+        assert not middleware._should_skip_path("/openapi.json.copy")
+
+    def test_skip_path_ignores_empty_rules(self):
+        from fastapi import FastAPI
+        from rate_limit_middleware import RateLimitMiddleware
+
+        middleware = RateLimitMiddleware(app=FastAPI(), skip_paths=["", "/docs"])
+
+        assert middleware._should_skip_path("/docs")
+        assert not middleware._should_skip_path("/api")
+
+    def test_extract_client_ip_ignores_spoofed_headers_by_default(self):
+        from fastapi import FastAPI
+        from rate_limit_middleware import RateLimitMiddleware
+        from types import SimpleNamespace
+
+        middleware = RateLimitMiddleware(app=FastAPI())
+        request = SimpleNamespace(
+            headers={"X-Forwarded-For": "203.0.113.9", "X-Real-IP": "203.0.113.10"},
+            client=SimpleNamespace(host="198.51.100.5"),
+        )
+
+        assert middleware._extract_client_ip(request) == "198.51.100.5"
+
+    def test_extract_client_ip_accepts_forwarded_headers_from_trusted_proxy(self):
+        from fastapi import FastAPI
+        from rate_limit_middleware import RateLimitMiddleware
+        from types import SimpleNamespace
+
+        middleware = RateLimitMiddleware(
+            app=FastAPI(),
+            trust_forwarded_headers=True,
+            trusted_proxy_ips=["10.0.0.0/8"],
+        )
+        request = SimpleNamespace(
+            headers={"X-Forwarded-For": "203.0.113.9, 10.0.0.1"},
+            client=SimpleNamespace(host="10.1.2.3"),
+        )
+
+        assert middleware._extract_client_ip(request) == "203.0.113.9"
+
+    def test_extract_client_ip_ignores_forwarded_headers_from_untrusted_proxy(self):
+        from fastapi import FastAPI
+        from rate_limit_middleware import RateLimitMiddleware
+        from types import SimpleNamespace
+
+        middleware = RateLimitMiddleware(
+            app=FastAPI(),
+            trust_forwarded_headers=True,
+            trusted_proxy_ips=["10.0.0.0/8"],
+        )
+        request = SimpleNamespace(
+            headers={"X-Forwarded-For": "203.0.113.9", "X-Real-IP": "203.0.113.10"},
+            client=SimpleNamespace(host="192.168.1.25"),
+        )
+
+        assert middleware._extract_client_ip(request) == "192.168.1.25"
+
+
 # Integration tests
 class TestMediumPriorityIntegration:
     """Integration tests for medium priority fixes"""

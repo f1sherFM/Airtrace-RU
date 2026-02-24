@@ -9,7 +9,7 @@ import json
 def test_js_sdk_package_has_version_and_build_scripts():
     package_payload = json.loads(Path("sdk/js/package.json").read_text(encoding="utf-8"))
     assert package_payload["name"] == "@airtrace-ru/sdk-js"
-    assert package_payload["version"] == "0.1.0"
+    assert package_payload["version"] == "0.3.1"
     assert "build" in package_payload["scripts"]
     assert "typecheck" in package_payload["scripts"]
 

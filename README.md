@@ -570,6 +570,15 @@ MIT License - см. файл [LICENSE](LICENSE)
 
 ## 📈 Changelog
 
+### v0.3.1 - Rate Limiting & Cache Invalidation Hardening (2026-02-24)
+- ✅ Закрыт umbrella issue `#33` (code review findings по rate limiting и cache invalidation).
+- ✅ `#36`: исправлен глобальный bypass rate limiting из-за `skip_paths=['/']` и substring matching.
+- ✅ `#37`: формализован и протестирован контракт `skip_paths` (exact / path-segment prefix, без substring bypass).
+- ✅ `#34`: `RateLimitManager` теперь управляет live middleware instance FastAPI (без дублирующего экземпляра).
+- ✅ `#35`: безопасное извлечение client IP для rate limiting (`safe-by-default`, trusted proxy allowlist через env).
+- ✅ `#38`: исправлена invalidation combined-cache по координатам через тот же keyspace, что `get/set`.
+- 🧪 Добавлены регрессионные тесты для path matching, spoofed proxy headers, live middleware binding и cache invalidation keyspace.
+
 ### v2.0.0 - Performance Optimization Release (2026-01-22)
 - ⚡ **Многоуровневое кэширование** (L1/L2/L3)
 - 🛡️ **Интеллектуальное rate limiting** с burst handling
@@ -583,6 +592,13 @@ MIT License - см. файл [LICENSE](LICENSE)
 - 📈 **Prometheus метрики** для enterprise мониторинга
 - 🧪 **200+ тестов** включая property-based testing
 - 📋 **Аудит конфигурации** с отслеживанием изменений
+
+#### Rate Limiting Behind Reverse Proxy (Security)
+- По умолчанию rate limiting использует `request.client.host` и не доверяет `X-Forwarded-For` / `X-Real-IP` (`safe-by-default`).
+- Для reverse-proxy deployment включите доверие явно:
+  - `PERFORMANCE_RATE_LIMIT_TRUST_FORWARDED_HEADERS=true`
+  - `PERFORMANCE_RATE_LIMIT_TRUSTED_PROXY_IPS=10.0.0.0/8,192.168.0.0/16` (список IP/CIDR доверенных прокси)
+- Не включайте `PERFORMANCE_RATE_LIMIT_TRUST_FORWARDED_HEADERS=true` без ограничения `PERFORMANCE_RATE_LIMIT_TRUSTED_PROXY_IPS`, если приложение доступно напрямую из сети.
 
 ### v1.0.0 - Initial Release
 - 🇷🇺 Базовая функциональность с российскими стандартами ПДК

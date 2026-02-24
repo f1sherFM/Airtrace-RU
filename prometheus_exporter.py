@@ -107,7 +107,7 @@ class PrometheusExporter:
             # Add metadata
             metrics_lines.append("# HELP airtrace_info AirTrace RU Backend information")
             metrics_lines.append("# TYPE airtrace_info gauge")
-            metrics_lines.append('airtrace_info{version="1.0.0",service="airtrace-ru"} 1')
+            metrics_lines.append('airtrace_info{version="0.3.1",service="airtrace-ru"} 1')
             metrics_lines.append("")
             
             # Export performance metrics

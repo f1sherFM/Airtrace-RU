@@ -281,9 +281,9 @@ class UnifiedWeatherService:
     async def invalidate_location_cache(self, lat: float, lon: float) -> bool:
         """Invalidate cache for specific location"""
         try:
-            cache_key = self._generate_combined_cache_key(lat, lon)
-            invalidated = await self.cache_manager.invalidate(
-                cache_key, 
+            invalidated = await self.cache_manager.invalidate_by_coordinates(
+                lat,
+                lon,
                 levels=[CacheLevel.L1, CacheLevel.L2]
             )
             logger.info(f"Invalidated {invalidated} cache entries for location {lat}, {lon}")

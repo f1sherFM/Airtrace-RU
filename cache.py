@@ -744,6 +744,20 @@ class MultiLevelCacheManager:
         
         logger.info(f"Invalidated {total_invalidated} cache entries")
         return total_invalidated
+
+    async def invalidate_by_coordinates(
+        self,
+        lat: float,
+        lon: float,
+        levels: Optional[List[CacheLevel]] = None,
+    ) -> int:
+        """
+        Invalidate cache entries for a coordinate pair using the same keyspace as get/set.
+
+        This avoids keyspace mismatches when coordinate keys are rounded/hashed.
+        """
+        key = self._generate_key(lat, lon)
+        return await self.invalidate(key, levels=levels)
     
     async def clear_expired(self) -> int:
         """Clear expired entries from all cache levels"""

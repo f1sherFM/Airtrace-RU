@@ -273,7 +273,7 @@ async def periodic_history_ingestion(interval_seconds: int = 3600):
 app = FastAPI(
     title="AirTrace RU API",
     description="Air Quality Monitoring API for Russian cities with privacy-first approach",
-    version="1.0.0",
+    version="0.3.1",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan
@@ -306,7 +306,9 @@ if config.performance.rate_limiting_enabled:
     rate_limit_manager = setup_rate_limiting(
         app=app,
         enabled=True,
-        skip_paths=["/docs", "/redoc", "/openapi.json", "/", "/version"]
+        skip_paths=["/docs", "/redoc", "/openapi.json", "/version"],
+        trust_forwarded_headers=config.performance.rate_limit_trust_forwarded_headers,
+        trusted_proxy_ips=config.performance.rate_limit_trusted_proxy_ips,
     )
     logger.info("Rate limiting middleware enabled")
 else:
@@ -417,7 +419,7 @@ async def root():
     """Корневой эндпоинт с информацией об API"""
     return {
         "service": "AirTrace RU Backend",
-        "version": "1.0.0",
+        "version": "0.3.1",
         "description": "Air Quality Monitoring API for Russian cities",
         "endpoints": {
             "current": "/weather/current",
@@ -1905,7 +1907,7 @@ async def get_version():
     """Получение информации о версии API"""
     return {
         "service": "AirTrace RU Backend",
-        "version": "1.0.0",
+        "version": "0.3.1",
         "api_version": "v1",
         "features": [
             "Russian AQI calculation",
