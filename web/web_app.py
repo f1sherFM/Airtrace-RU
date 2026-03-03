@@ -650,12 +650,15 @@ async def alert_settings_delete(rule_id: str):
 async def api_health():
     """Проверка здоровья веб-приложения"""
     backend_health = await air_service.check_health()
-    
+    backend_status = normalize_api_status(backend_health.get("status"))
+    reachable = bool(backend_health.get("reachable", False))
+    overall_status = backend_status if reachable else "unhealthy"
+
     return {
-        "status": "healthy",
+        "status": overall_status,
         "timestamp": datetime.now().isoformat(),
-        "backend_api": normalize_api_status(backend_health.get("status")),
-        "backend_reachable": bool(backend_health.get("reachable", False)),
+        "backend_api": backend_status,
+        "backend_reachable": reachable,
         "cities_available": len(CITIES)
     }
 
