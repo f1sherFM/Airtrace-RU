@@ -13,7 +13,7 @@ Privacy-first асинхронный REST API сервис для монитор
 - НМУ детектор для определения неблагоприятных условий
 """
 
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, HTTPException, Query, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from contextlib import asynccontextmanager
@@ -27,6 +27,7 @@ import os
 import csv
 import io
 import json
+import secrets
 
 from schemas import (
     AirQualityData,
@@ -76,6 +77,63 @@ telegram_delivery_service = TelegramDeliveryService(
     retry_delay_seconds=float(os.getenv("TELEGRAM_RETRY_DELAY_SECONDS", "0.7")),
     dead_letter_sink=TelegramDeadLetterSink("logs/telegram_dead_letter.jsonl"),
 )
+
+
+def _get_alert_delivery_api_keys() -> list[str]:
+    """Get configured API keys for sensitive alert delivery endpoints."""
+    keys: list[str] = []
+
+    legacy_key = os.getenv("ALERTS_API_KEY", "").strip()
+    if legacy_key:
+        keys.append(legacy_key)
+
+    for raw in os.getenv("ALERTS_API_KEYS", "").split(","):
+        candidate = raw.strip()
+        if candidate and candidate not in keys:
+            keys.append(candidate)
+
+    return keys
+
+
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    if not authorization:
+        return None
+    parts = authorization.strip().split(" ", 1)
+    if len(parts) == 2 and parts[0].lower() == "bearer":
+        token = parts[1].strip()
+        return token or None
+    return None
+
+
+async def require_alert_delivery_auth(
+    x_api_key: Optional[str] = Header(default=None, alias="X-API-Key"),
+    authorization: Optional[str] = Header(default=None, alias="Authorization"),
+) -> None:
+    """Protect delivery endpoints from unauthorized public access."""
+    keys = _get_alert_delivery_api_keys()
+    if not keys:
+        logger.error(
+            "Alert delivery auth is not configured: set ALERTS_API_KEY or ALERTS_API_KEYS"
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Alert delivery authentication is not configured",
+        )
+
+    provided = (x_api_key or "").strip() or (_extract_bearer_token(authorization) or "")
+    if not provided:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing alert delivery API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not any(secrets.compare_digest(provided, expected) for expected in keys):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid alert delivery API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 @asynccontextmanager
@@ -811,7 +869,10 @@ async def check_current_alerts(
 
 
 @app.post("/alerts/telegram/send", response_model=DeliveryResult)
-async def send_telegram_message(payload: TelegramSendRequest):
+async def send_telegram_message(
+    payload: TelegramSendRequest,
+    _auth: None = Depends(require_alert_delivery_auth),
+):
     """Send message via Telegram channel with retry/dead-letter."""
     result = await telegram_delivery_service.send_message(
         chat_id=payload.chat_id,
@@ -822,6 +883,7 @@ async def send_telegram_message(payload: TelegramSendRequest):
 
 @app.get("/alerts/check-current-and-deliver", response_model=list[DeliveryResult])
 async def check_current_alerts_and_deliver(
+    _auth: None = Depends(require_alert_delivery_auth),
     lat: float = Query(..., ge=-90, le=90),
     lon: float = Query(..., ge=-180, le=180),
     chat_id: Optional[str] = Query(None, min_length=1, max_length=128),
@@ -957,6 +1019,7 @@ async def get_daily_digest(
 
 @app.get("/alerts/digest/daily-and-deliver", response_model=DeliveryResult)
 async def deliver_daily_digest(
+    _auth: None = Depends(require_alert_delivery_auth),
     chat_id: str = Query(..., min_length=1, max_length=128),
     city: Optional[str] = Query(None, min_length=2, max_length=64),
     lat: Optional[float] = Query(None, ge=-90, le=90),

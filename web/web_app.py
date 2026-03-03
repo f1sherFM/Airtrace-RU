@@ -59,6 +59,12 @@ class AirQualityService:
             max_keepalive_connections=5,
             read_timeout=30.0,
         )
+        self.alerts_api_key = os.getenv("ALERTS_API_KEY", "").strip()
+
+    def _alert_auth_headers(self) -> Dict[str, str]:
+        if not self.alerts_api_key:
+            return {}
+        return {"X-API-Key": self.alerts_api_key}
     
     async def get_current_data(self, lat: float, lon: float) -> Dict[str, Any]:
         """Получение текущих данных о качестве воздуха"""
@@ -194,7 +200,11 @@ class AirQualityService:
         elif lat is not None and lon is not None:
             params["lat"] = lat
             params["lon"] = lon
-        response = await self.client.get(f"{API_BASE_URL}/alerts/digest/daily-and-deliver", params=params)
+        response = await self.client.get(
+            f"{API_BASE_URL}/alerts/digest/daily-and-deliver",
+            params=params,
+            headers=self._alert_auth_headers(),
+        )
         response.raise_for_status()
         return response.json()
     
