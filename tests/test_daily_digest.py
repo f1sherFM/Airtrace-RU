@@ -51,12 +51,21 @@ async def test_daily_digest_and_deliver():
     main.history_snapshot_store = _seed_history_for_digest()
     transport = httpx.ASGITransport(app=main.app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        with patch.object(main.telegram_delivery_service, "send_message", AsyncMock(return_value={
-            "channel": "telegram",
-            "status": "sent",
-            "attempts": 1,
-            "event_id": "digest:moscow",
-        })):
-            resp = await client.get("/alerts/digest/daily-and-deliver?city=moscow&chat_id=123")
+        with patch.dict("os.environ", {"ALERTS_API_KEY": "test-alert-key"}, clear=False), patch.object(
+            main.telegram_delivery_service,
+            "send_message",
+            AsyncMock(
+                return_value={
+                    "channel": "telegram",
+                    "status": "sent",
+                    "attempts": 1,
+                    "event_id": "digest:moscow",
+                }
+            ),
+        ):
+            resp = await client.get(
+                "/alerts/digest/daily-and-deliver?city=moscow&chat_id=123",
+                headers={"X-API-Key": "test-alert-key"},
+            )
             assert resp.status_code == 200
             assert resp.json()["status"] == "sent"

@@ -113,6 +113,9 @@ class WeatherAPIManager:
         if not self.api_key:
             raise Exception("WeatherAPI key not configured")
         
+        # Count each request attempt once, regardless of outcome.
+        self.requests_made += 1
+
         try:
             url = self._build_request_url(endpoint, lat, lon, **params)
             
@@ -127,16 +130,13 @@ class WeatherAPIManager:
                 ServiceType.WEATHER_API,
                 api_request
             )
-            
-            self.requests_made += 1
-            
+
             if response.status_code == 200:
                 self.successful_requests += 1
                 self.api_available = True
                 self.last_error = None
                 return response.data
             else:
-                self.failed_requests += 1
                 error_msg = f"WeatherAPI returned status {response.status_code}"
                 
                 # Try to extract error message from response

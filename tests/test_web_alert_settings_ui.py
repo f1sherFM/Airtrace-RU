@@ -111,3 +111,25 @@ async def test_alert_settings_crud_redirect_flow():
     assert update_resp.status_code == 303
     assert delete_resp.status_code == 303
     assert calls == {"create": 1, "update": 1, "delete": 1}
+
+
+@pytest.mark.asyncio
+async def test_api_health_reflects_backend_unreachable_status():
+    original_check_health = web_app.air_service.check_health
+
+    async def _fake_check_health():
+        return {"status": "degraded", "reachable": False}
+
+    web_app.air_service.check_health = _fake_check_health
+    try:
+        transport = httpx.ASGITransport(app=web_app.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/health")
+    finally:
+        web_app.air_service.check_health = original_check_health
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["backend_api"] == "degraded"
+    assert payload["backend_reachable"] is False
+    assert payload["status"] == "unhealthy"

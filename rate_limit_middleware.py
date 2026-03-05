@@ -6,9 +6,10 @@ including proper HTTP 429 responses and rate limit headers.
 """
 
 import logging
+import os
 import time
-from ipaddress import ip_address, ip_network
-from typing import Callable, Optional
+import ipaddress
+from typing import Callable, Optional, Union
 
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import JSONResponse
@@ -21,6 +22,26 @@ from rate_limit_monitoring import get_rate_limit_monitor, setup_rate_limit_loggi
 from schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
+
+
+def _load_trusted_proxy_networks() -> list[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]:
+    """Load trusted proxy IP/CIDR list from env for safe forwarded-header parsing."""
+    raw = os.getenv("RATE_LIMIT_TRUSTED_PROXIES", "")
+    networks: list[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]] = []
+
+    for item in raw.split(","):
+        candidate = item.strip()
+        if not candidate:
+            continue
+        try:
+            if "/" in candidate:
+                networks.append(ipaddress.ip_network(candidate, strict=False))
+            else:
+                networks.append(ipaddress.ip_network(f"{candidate}/32", strict=False))
+        except ValueError:
+            logger.warning("Ignoring invalid RATE_LIMIT_TRUSTED_PROXIES entry: %s", candidate)
+
+    return networks
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -40,104 +61,71 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         enabled: bool = True,
         skip_paths: Optional[list] = None,
         custom_identifier: Optional[Callable[[Request], str]] = None,
-        on_instance_ready: Optional[Callable[["RateLimitMiddleware"], None]] = None,
         # ✅ NEW: IP-based rate limiting configuration
         ip_rate_limit_enabled: bool = True,
         max_requests_per_ip_per_minute: int = 100,
-        ip_burst_multiplier: float = 1.5,
-        trust_forwarded_headers: bool = False,
-        trusted_proxy_ips: Optional[list[str]] = None,
+        ip_burst_multiplier: float = 1.5
     ):
         super().__init__(app)
         self.rate_limiter = rate_limiter or RateLimiter()
         self.enabled = enabled
-        # Contract: each skip path is matched by exact path or path-segment prefix.
-        # Examples:
-        # - "/docs" matches "/docs" and "/docs/oauth2-redirect"
-        # - "/docs" does NOT match "/api/docs-backup" or "/docsx"
-        # - "/" matches only the root path
         self.skip_paths = skip_paths or ["/docs", "/redoc", "/openapi.json"]
         self.custom_identifier = custom_identifier
-        self.on_instance_ready = on_instance_ready
         
         # ✅ NEW: IP-based rate limiting
         self.ip_rate_limit_enabled = ip_rate_limit_enabled
         self.max_requests_per_ip = max_requests_per_ip_per_minute
         self.ip_burst_limit = int(max_requests_per_ip_per_minute * ip_burst_multiplier)
         self.ip_request_counts: dict[str, dict] = {}  # IP -> {count, reset_time, burst_count}
-        self.trust_forwarded_headers = trust_forwarded_headers
-        self.trusted_proxy_networks = []
-        for entry in trusted_proxy_ips or []:
-            try:
-                self.trusted_proxy_networks.append(ip_network(entry, strict=False))
-            except ValueError:
-                logger.warning(f"Ignoring invalid trusted proxy network: {entry}")
-        if self.trust_forwarded_headers and not self.trusted_proxy_networks:
-            logger.warning(
-                "RateLimitMiddleware trusts forwarded headers without trusted_proxy_ips; "
-                "this is unsafe unless the app is reachable only through a trusted reverse proxy."
-            )
         
         # Metrics
         self.total_requests = 0
         self.blocked_requests = 0
         self.ip_blocked_requests = 0
         self.start_time = time.time()
+        self.trusted_proxy_networks = _load_trusted_proxy_networks()
         
         logger.info(
             f"Rate limiting middleware initialized - "
             f"Enabled: {enabled}, IP limiting: {ip_rate_limit_enabled}, "
             f"IP limit: {max_requests_per_ip_per_minute}/min"
         )
-        if self.on_instance_ready:
-            try:
-                self.on_instance_ready(self)
-            except Exception as e:
-                logger.warning(f"Failed to register live rate limit middleware instance: {e}")
+        if self.trusted_proxy_networks:
+            logger.info(
+                "Rate limiting trusted proxies configured: %d entries",
+                len(self.trusted_proxy_networks),
+            )
     
     def _should_skip_path(self, path: str) -> bool:
-        """Check if path should skip rate limiting (exact or path-segment prefix)."""
-        return any(self._path_matches_skip_rule(path, skip_path) for skip_path in self.skip_paths)
-
-    @staticmethod
-    def _path_matches_skip_rule(path: str, skip_path: str) -> bool:
-        """Exact match or prefix on a path boundary, never substring match."""
-        if not skip_path:
-            return False
-        if skip_path == "/":
-            return path == "/"
-        return path == skip_path or path.startswith(f"{skip_path}/")
-
-    def _is_trusted_proxy(self, proxy_ip: str) -> bool:
-        if not self.trust_forwarded_headers:
-            return False
-        if not self.trusted_proxy_networks:
-            return True
-        try:
-            addr = ip_address(proxy_ip)
-        except ValueError:
-            return False
-        return any(addr in network for network in self.trusted_proxy_networks)
+        """Check if path should skip rate limiting"""
+        return any(skip_path in path for skip_path in self.skip_paths)
     
     def _extract_client_ip(self, request: Request) -> str:
         """Extract client IP address from request"""
+        # Fallback to direct client IP
         client_host = request.client.host if request.client else "unknown"
-
         if not self._is_trusted_proxy(client_host):
             return client_host
 
-        # Check for forwarded headers (proxy/load balancer)
+        # Trust forwarded headers only when request comes from trusted proxy.
         forwarded_for = request.headers.get("X-Forwarded-For")
         if forwarded_for:
-            # Take the first IP in the chain
             return forwarded_for.split(",")[0].strip()
-        
+
         real_ip = request.headers.get("X-Real-IP")
         if real_ip:
             return real_ip.strip()
-        
-        # Fallback to direct client IP
+
         return client_host
+
+    def _is_trusted_proxy(self, client_host: str) -> bool:
+        if not self.trusted_proxy_networks:
+            return False
+        try:
+            ip = ipaddress.ip_address(client_host)
+        except ValueError:
+            return False
+        return any(ip in network for network in self.trusted_proxy_networks)
     
     def _extract_user_agent(self, request: Request) -> Optional[str]:
         """Extract user agent from request"""
@@ -382,35 +370,32 @@ class RateLimitManager:
         self.rate_limiter = RateLimiter()
         self.middleware: Optional[RateLimitMiddleware] = None
         self._enabled = False
-
-    def _bind_live_middleware(self, middleware: RateLimitMiddleware) -> None:
-        """Bind the live middleware instance created by FastAPI/Starlette."""
-        self.middleware = middleware
-        self._enabled = middleware.enabled
     
     def setup_middleware(
         self,
         app: FastAPI,
         enabled: bool = True,
         skip_paths: Optional[list] = None,
-        custom_identifier: Optional[Callable[[Request], str]] = None,
-        trust_forwarded_headers: bool = False,
-        trusted_proxy_ips: Optional[list[str]] = None,
-    ) -> "RateLimitManager":
+        custom_identifier: Optional[Callable[[Request], str]] = None
+    ) -> RateLimitMiddleware:
         """Setup rate limiting middleware for FastAPI app"""
+        self.middleware = RateLimitMiddleware(
+            app=app,
+            rate_limiter=self.rate_limiter,
+            enabled=enabled,
+            skip_paths=skip_paths,
+            custom_identifier=custom_identifier
+        )
+        
         app.add_middleware(RateLimitMiddleware, 
                           rate_limiter=self.rate_limiter,
                           enabled=enabled,
                           skip_paths=skip_paths,
-                          custom_identifier=custom_identifier,
-                          trust_forwarded_headers=trust_forwarded_headers,
-                          trusted_proxy_ips=trusted_proxy_ips,
-                          on_instance_ready=self._bind_live_middleware)
+                          custom_identifier=custom_identifier)
         
         self._enabled = enabled
         logger.info("Rate limiting middleware added to FastAPI app")
-        # The actual middleware instance is created lazily when FastAPI builds the middleware stack.
-        return self
+        return self.middleware
     
     def enable(self):
         """Enable rate limiting"""
@@ -451,7 +436,9 @@ class RateLimitManager:
         )
     
     def _extract_client_ip_from_request(self, request: Request) -> str:
-        """Extract client IP from request for manual checks (safe-by-default)."""
+        """Extract client IP from request (same logic as middleware)"""
+        if self.middleware:
+            return self.middleware._extract_client_ip(request)
         return request.client.host if request.client else "unknown"
     
     async def get_comprehensive_stats(self) -> dict:
@@ -491,9 +478,7 @@ def setup_rate_limiting(
     app: FastAPI,
     enabled: bool = True,
     skip_paths: Optional[list] = None,
-    custom_identifier: Optional[Callable[[Request], str]] = None,
-    trust_forwarded_headers: bool = False,
-    trusted_proxy_ips: Optional[list[str]] = None,
+    custom_identifier: Optional[Callable[[Request], str]] = None
 ) -> RateLimitManager:
     """
     Convenience function to setup rate limiting for a FastAPI app.
@@ -501,10 +486,8 @@ def setup_rate_limiting(
     Args:
         app: FastAPI application instance
         enabled: Whether rate limiting is enabled
-        skip_paths: List of path rules skipped by rate limiting (exact match or path-segment prefix, never substring)
+        skip_paths: List of paths to skip rate limiting
         custom_identifier: Custom function to extract client identifier
-        trust_forwarded_headers: Trust X-Forwarded-For/X-Real-IP only when requests come from trusted proxies
-        trusted_proxy_ips: Trusted proxy IPs/CIDRs. Empty list with trust_forwarded_headers=True trusts any proxy.
         
     Returns:
         RateLimitManager instance
@@ -513,9 +496,7 @@ def setup_rate_limiting(
         app=app,
         enabled=enabled,
         skip_paths=skip_paths,
-        custom_identifier=custom_identifier,
-        trust_forwarded_headers=trust_forwarded_headers,
-        trusted_proxy_ips=trusted_proxy_ips,
+        custom_identifier=custom_identifier
     )
     
     return rate_limit_manager

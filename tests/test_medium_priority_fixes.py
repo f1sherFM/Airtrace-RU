@@ -11,6 +11,7 @@ Tests for:
 import pytest
 import asyncio
 import time
+import os
 from unittest.mock import Mock, patch, AsyncMock
 from fastapi import Request
 from fastapi.testclient import TestClient
@@ -433,6 +434,35 @@ class TestIPRateLimiting:
         
         # Should have cleaned up to ~1000 or less
         assert len(middleware.ip_request_counts) <= 1001  # Allow small margin
+
+    def test_forwarded_headers_ignored_without_trusted_proxy(self):
+        """Forwarded headers must not override client IP by default."""
+        from rate_limit_middleware import RateLimitMiddleware
+        from fastapi import FastAPI
+
+        app = FastAPI()
+        middleware = RateLimitMiddleware(app=app, ip_rate_limit_enabled=True)
+
+        request = Mock()
+        request.headers = {"X-Forwarded-For": "203.0.113.10"}
+        request.client = Mock(host="198.51.100.2")
+
+        assert middleware._extract_client_ip(request) == "198.51.100.2"
+
+    def test_forwarded_headers_used_for_trusted_proxy(self):
+        """Forwarded headers can be used only when client host is trusted proxy."""
+        from rate_limit_middleware import RateLimitMiddleware
+        from fastapi import FastAPI
+
+        app = FastAPI()
+        with patch.dict(os.environ, {"RATE_LIMIT_TRUSTED_PROXIES": "198.51.100.0/24"}, clear=False):
+            middleware = RateLimitMiddleware(app=app, ip_rate_limit_enabled=True)
+
+        request = Mock()
+        request.headers = {"X-Forwarded-For": "203.0.113.10"}
+        request.client = Mock(host="198.51.100.2")
+
+        assert middleware._extract_client_ip(request) == "203.0.113.10"
 
 
 class TestRateLimitMiddlewareSecurityAndPathMatching:
