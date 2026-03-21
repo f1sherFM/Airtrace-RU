@@ -16,6 +16,21 @@ from starlette.types import ASGIApp
 import traceback
 from datetime import datetime, timezone
 
+
+# Кастомный JSONResponse с ensure_ascii=False для корректной работы с кириллицей
+class UnicodeJSONResponse(JSONResponse):
+    """JSONResponse с поддержкой Unicode (кириллицы) без экранирования"""
+    
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -213,7 +228,7 @@ class PrivacyMiddleware(BaseHTTPMiddleware):
     async def _sanitize_response(self, response: Response) -> Response:
         """Санитизация ответа для удаления чувствительных данных"""
         # Если это не JSON ответ, возвращаем как есть
-        if not isinstance(response, JSONResponse):
+        if not isinstance(response, (JSONResponse, UnicodeJSONResponse)):
             return response
         
         try:
@@ -228,11 +243,14 @@ class PrivacyMiddleware(BaseHTTPMiddleware):
             # Санитизируем данные
             sanitized_data = self._sanitize_json_data(response_data)
             
-            # Создаем новый ответ с санитизированными данными
-            return JSONResponse(
+            # Создаем новый ответ с санитизированными данными и правильной кодировкой
+            headers = dict(response.headers)
+            headers["content-type"] = "application/json; charset=utf-8"
+            
+            return UnicodeJSONResponse(
                 content=sanitized_data,
                 status_code=response.status_code,
-                headers=dict(response.headers)
+                headers=headers
             )
             
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
@@ -284,7 +302,7 @@ class PrivacyMiddleware(BaseHTTPMiddleware):
         
         return sanitized
     
-    async def _create_safe_error_response(self, error: Exception) -> JSONResponse:
+    async def _create_safe_error_response(self, error: Exception) -> UnicodeJSONResponse:
         """Создание безопасного ответа об ошибке"""
         # Определяем тип ошибки и соответствующий код статуса
         if isinstance(error, ValueError):
@@ -309,9 +327,10 @@ class PrivacyMiddleware(BaseHTTPMiddleware):
             }
         }
         
-        return JSONResponse(
+        return UnicodeJSONResponse(
             content=error_response,
-            status_code=status_code
+            status_code=status_code,
+            headers={"content-type": "application/json; charset=utf-8"}
         )
     
     def validate_external_request(self, url: str) -> bool:

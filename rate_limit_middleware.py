@@ -9,7 +9,8 @@ import logging
 import os
 import time
 import ipaddress
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, Any
+import json
 
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import JSONResponse
@@ -20,6 +21,21 @@ from rate_limit_types import RateLimitResult
 from rate_limiter import RateLimiter
 from rate_limit_monitoring import get_rate_limit_monitor, setup_rate_limit_logging
 from schemas import ErrorResponse
+
+
+# Кастомный JSONResponse с ensure_ascii=False для корректной работы с кириллицей
+class UnicodeJSONResponse(JSONResponse):
+    """JSONResponse с поддержкой Unicode (кириллицы) без экранирования"""
+    
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
+
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +147,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Extract user agent from request"""
         return request.headers.get("User-Agent")
     
-    def _create_rate_limit_response(self, result: RateLimitResult, endpoint: str) -> JSONResponse:
+    def _create_rate_limit_response(self, result: RateLimitResult, endpoint: str) -> UnicodeJSONResponse:
         """Create HTTP 429 response with rate limit information"""
         error_response = ErrorResponse(
             code="RATE_LIMIT_EXCEEDED",
@@ -143,6 +159,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Add additional context headers
         headers["X-RateLimit-Endpoint"] = endpoint
         headers["X-RateLimit-Policy"] = "sliding-window"
+        headers["Content-Type"] = "application/json; charset=utf-8"
         
         logger.warning(
             f"Rate limit exceeded - Endpoint: {endpoint}, "
@@ -150,7 +167,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             f"Retry after: {result.retry_after}s"
         )
         
-        return JSONResponse(
+        return UnicodeJSONResponse(
             status_code=429,
             content=error_response.model_dump(mode='json'),
             headers=headers
@@ -235,7 +252,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         return True, 0
     
-    def _create_ip_rate_limit_response(self, client_ip: str, retry_after: int) -> JSONResponse:
+    def _create_ip_rate_limit_response(self, client_ip: str, retry_after: int) -> UnicodeJSONResponse:
         """Create HTTP 429 response for IP rate limit"""
         error_response = ErrorResponse(
             code="IP_RATE_LIMIT_EXCEEDED",
@@ -246,7 +263,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "Retry-After": str(retry_after),
             "X-RateLimit-Limit": str(self.max_requests_per_ip),
             "X-RateLimit-Policy": "per-ip",
-            "X-RateLimit-Window": "60"
+            "X-RateLimit-Window": "60",
+            "Content-Type": "application/json; charset=utf-8"
         }
         
         logger.warning(
@@ -254,7 +272,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             f"Retry after: {retry_after}s"
         )
         
-        return JSONResponse(
+        return UnicodeJSONResponse(
             status_code=429,
             content=error_response.model_dump(mode='json'),
             headers=headers

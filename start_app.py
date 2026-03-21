@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Скрипт запуска полного приложения AirTrace RU
 Запускает API сервер и веб-интерфейс
@@ -11,6 +12,22 @@ import webbrowser
 import signal
 import os
 from pathlib import Path
+
+
+# Устанавливаем правильную кодировку для Windows
+if sys.platform == 'win32':
+    # Устанавливаем кодовую страницу UTF-8 для консоли Windows
+    os.system('chcp 65001 > nul')
+    
+# Устанавливаем переменные окружения для правильной работы с кириллицей
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+os.environ['PYTHONUTF8'] = '1'
+
+# Перенастраиваем stdout/stderr на UTF-8
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
 
 class AirTraceApp:
     def __init__(self):
@@ -30,11 +47,16 @@ class AirTraceApp:
         print("🔧 Запуск API сервера (порт 8000)...")
         
         try:
+            # Создаем окружение с правильной кодировкой
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['PYTHONUTF8'] = '1'
+            
             self.api_process = subprocess.Popen([
                 sys.executable, "-m", "uvicorn", "main:app",
                 "--host", "127.0.0.1",
                 "--port", "8000"
-            ])
+            ], env=env)
             
             # Ждем запуска
             print("⏳ Ожидание запуска API сервера...")
@@ -61,9 +83,14 @@ class AirTraceApp:
             return False
         
         try:
+            # Создаем окружение с правильной кодировкой
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['PYTHONUTF8'] = '1'
+            
             self.web_process = subprocess.Popen([
                 sys.executable, "web_app.py"
-            ], cwd=web_dir)
+            ], cwd=web_dir, env=env)
             
             # Ждем запуска
             print("⏳ Ожидание запуска веб-интерфейса...")

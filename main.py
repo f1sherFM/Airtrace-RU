@@ -13,11 +13,11 @@ Privacy-first асинхронный REST API сервис для монитор
 - НМУ детектор для определения неблагоприятных условий
 """
 
-from fastapi import FastAPI, HTTPException, Query, Depends, Header
+from fastapi import FastAPI, HTTPException, Query, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime, timezone, timedelta
 import asyncio
 import logging
@@ -28,6 +28,20 @@ import csv
 import io
 import json
 import secrets
+
+
+# Кастомный JSONResponse с ensure_ascii=False для корректной работы с кириллицей
+class UnicodeJSONResponse(JSONResponse):
+    """JSONResponse с поддержкой Unicode (кириллицы) без экранирования"""
+    
+    def render(self, content: Any) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+        ).encode("utf-8")
 
 from schemas import (
     AirQualityData,
@@ -334,8 +348,23 @@ app = FastAPI(
     version="0.3.1",
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan
+    lifespan=lifespan,
+    default_response_class=UnicodeJSONResponse  # Используем кастомный response для кириллицы
 )
+
+
+# Middleware для установки правильной кодировки в ответах
+@app.middleware("http")
+async def add_charset_header(request: Request, call_next):
+    """Добавление charset=utf-8 к Content-Type для корректного отображения кириллицы"""
+    response = await call_next(request)
+    
+    # Если это JSON ответ, добавляем charset=utf-8
+    content_type = response.headers.get("content-type", "")
+    if "application/json" in content_type and "charset" not in content_type:
+        response.headers["content-type"] = "application/json; charset=utf-8"
+    
+    return response
 
 # CORS middleware для поддержки веб-клиентов
 app.add_middleware(
