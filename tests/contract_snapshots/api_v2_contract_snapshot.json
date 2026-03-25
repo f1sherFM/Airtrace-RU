@@ -151,6 +151,50 @@
         "title": "AirQualityData",
         "type": "object"
       },
+      "ErrorResponse": {
+        "description": "Стандартная модель для ошибок API",
+        "example": {
+          "code": "VALIDATION_ERROR",
+          "details": {
+            "latitude": "Значение должно быть между -90 и 90"
+          },
+          "message": "Некорректные координаты",
+          "timestamp": "2024-01-15T12:00:00Z"
+        },
+        "properties": {
+          "code": {
+            "description": "Код ошибки",
+            "title": "Code",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Дополнительные детали ошибки",
+            "title": "Details"
+          },
+          "message": {
+            "description": "Сообщение об ошибке",
+            "title": "Message",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Время возникновения ошибки",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -400,6 +444,44 @@
         "title": "HistoryQueryResponse",
         "type": "object"
       },
+      "HistoryTrendResponse": {
+        "description": "Stable read-only trend response for the public v2 API.",
+        "properties": {
+          "aggregation": {
+            "default": "day",
+            "title": "Aggregation",
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/TrendLocation"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "range": {
+            "$ref": "#/components/schemas/TrendRange"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/TrendDirection"
+          }
+        },
+        "required": [
+          "range",
+          "location",
+          "trend",
+          "summary"
+        ],
+        "title": "HistoryTrendResponse",
+        "type": "object"
+      },
       "ResponseMetadata": {
         "description": "Единая metadata-модель происхождения и качества данных",
         "properties": {
@@ -457,6 +539,61 @@
           }
         },
         "title": "ResponseMetadata",
+        "type": "object"
+      },
+      "TrendPoint": {
+        "description": "Single aggregated trend data point.",
+        "properties": {
+          "aqi_avg": {
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Aqi Avg",
+            "type": "number"
+          },
+          "aqi_max": {
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Aqi Max",
+            "type": "integer"
+          },
+          "aqi_min": {
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Aqi Min",
+            "type": "integer"
+          },
+          "avg_confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Avg Confidence",
+            "type": "number"
+          },
+          "dominant_source": {
+            "description": "Dominant provenance source for the bucket",
+            "title": "Dominant Source",
+            "type": "string"
+          },
+          "sample_count": {
+            "minimum": 0.0,
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "timestamp": {
+            "description": "UTC start of the aggregation bucket",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp",
+          "aqi_min",
+          "aqi_max",
+          "aqi_avg",
+          "sample_count",
+          "avg_confidence",
+          "dominant_source"
+        ],
+        "title": "TrendPoint",
         "type": "object"
       },
       "ValidationError": {
@@ -658,12 +795,12 @@
         "operationId": "get_current_air_quality_v2_v2_current_get",
         "parameters": [
           {
-            "description": "Широта",
+            "description": "Latitude",
             "in": "query",
             "name": "lat",
             "required": true,
             "schema": {
-              "description": "Широта",
+              "description": "Latitude",
               "maximum": 90,
               "minimum": -90,
               "title": "Lat",
@@ -671,12 +808,12 @@
             }
           },
           {
-            "description": "Долгота",
+            "description": "Longitude",
             "in": "query",
             "name": "lon",
             "required": true,
             "schema": {
-              "description": "Долгота",
+              "description": "Longitude",
               "maximum": 180,
               "minimum": -180,
               "title": "Lon",
@@ -695,15 +832,65 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -713,12 +900,12 @@
         "operationId": "get_forecast_air_quality_v2_v2_forecast_get",
         "parameters": [
           {
-            "description": "Широта",
+            "description": "Latitude",
             "in": "query",
             "name": "lat",
             "required": true,
             "schema": {
-              "description": "Широта",
+              "description": "Latitude",
               "maximum": 90,
               "minimum": -90,
               "title": "Lat",
@@ -726,12 +913,12 @@
             }
           },
           {
-            "description": "Долгота",
+            "description": "Longitude",
             "in": "query",
             "name": "lon",
             "required": true,
             "schema": {
-              "description": "Долгота",
+              "description": "Longitude",
               "maximum": 180,
               "minimum": -180,
               "title": "Lon",
@@ -739,13 +926,13 @@
             }
           },
           {
-            "description": "Горизонт прогноза в часах (1..168)",
+            "description": "Forecast horizon in hours",
             "in": "query",
             "name": "hours",
             "required": false,
             "schema": {
               "default": 24,
-              "description": "Горизонт прогноза в часах (1..168)",
+              "description": "Forecast horizon in hours",
               "maximum": 168,
               "minimum": 1,
               "title": "Hours",
@@ -768,15 +955,65 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -795,6 +1032,66 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }
@@ -804,37 +1101,37 @@
         "operationId": "get_history_v2_v2_history_get",
         "parameters": [
           {
-            "description": "Диапазон: 24h, 7d или 30d",
+            "description": "History range preset",
             "in": "query",
             "name": "range",
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/HistoryRange",
               "default": "24h",
-              "description": "Диапазон: 24h, 7d или 30d"
+              "description": "History range preset"
             }
           },
           {
-            "description": "Номер страницы (с 1)",
+            "description": "Page number",
             "in": "query",
             "name": "page",
             "required": false,
             "schema": {
               "default": 1,
-              "description": "Номер страницы (с 1)",
+              "description": "Page number",
               "minimum": 1,
               "title": "Page",
               "type": "integer"
             }
           },
           {
-            "description": "Размер страницы",
+            "description": "Page size",
             "in": "query",
             "name": "page_size",
             "required": false,
             "schema": {
               "default": 50,
-              "description": "Размер страницы",
+              "description": "Page size",
               "maximum": 500,
               "minimum": 1,
               "title": "Page Size",
@@ -842,7 +1139,18 @@
             }
           },
           {
-            "description": "Код города (например, moscow)",
+            "description": "Sort order: desc = newest first, asc = oldest first",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/HistorySortOrder",
+              "default": "desc",
+              "description": "Sort order: desc = newest first, asc = oldest first"
+            }
+          },
+          {
+            "description": "Configured city code",
             "in": "query",
             "name": "city",
             "required": false,
@@ -857,12 +1165,12 @@
                   "type": "null"
                 }
               ],
-              "description": "Код города (например, moscow)",
+              "description": "Configured city code",
               "title": "City"
             }
           },
           {
-            "description": "Широта для custom history",
+            "description": "Custom latitude",
             "in": "query",
             "name": "lat",
             "required": false,
@@ -877,12 +1185,12 @@
                   "type": "null"
                 }
               ],
-              "description": "Широта для custom history",
+              "description": "Custom latitude",
               "title": "Lat"
             }
           },
           {
-            "description": "Долгота для custom history",
+            "description": "Custom longitude",
             "in": "query",
             "name": "lon",
             "required": false,
@@ -897,7 +1205,7 @@
                   "type": "null"
                 }
               ],
-              "description": "Долгота для custom history",
+              "description": "Custom longitude",
               "title": "Lon"
             }
           }
@@ -913,15 +1221,215 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
           "422": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             },
-            "description": "Validation Error"
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/v2/trends": {
+      "get": {
+        "operationId": "get_history_trends_v2_v2_trends_get",
+        "parameters": [
+          {
+            "description": "Trend range preset",
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TrendRange",
+              "default": "7d",
+              "description": "Trend range preset"
+            }
+          },
+          {
+            "description": "Configured city code",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Configured city code",
+              "title": "City"
+            }
+          },
+          {
+            "description": "Custom latitude",
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Custom latitude",
+              "title": "Lat"
+            }
+          },
+          {
+            "description": "Custom longitude",
+            "in": "query",
+            "name": "lon",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Custom longitude",
+              "title": "Lon"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryTrendResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         }
       }

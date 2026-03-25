@@ -12,8 +12,10 @@ def test_python_sdk_has_pip_ready_skeleton_and_version():
     assert "httpx" in pyproject
 
     init_file = Path("sdk/python/src/airtrace_sdk/__init__.py").read_text(encoding="utf-8")
+    readme = Path("sdk/python/README.md").read_text(encoding="utf-8")
     assert "AirTraceClient" in init_file
     assert "AirTraceError" in init_file
+    assert "openapi/airtrace-v2.openapi.json" in readme
 
 
 def test_python_sdk_client_has_retry_and_error_handling_and_example():
@@ -28,4 +30,7 @@ def test_python_sdk_client_has_retry_and_error_handling_and_example():
     assert "get_current" in client
     assert "get_forecast" in client
     assert "get_history_by_city" in client
+    assert "get_trends_by_city" in client
+    assert 'sort: str = "desc"' in client
     assert "with AirTraceClient" in example
+    assert "get_trends_by_city" in example

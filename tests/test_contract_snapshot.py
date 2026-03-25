@@ -35,14 +35,18 @@ def _build_contract_snapshot() -> Dict[str, Any]:
         "/v2/current",
         "/v2/forecast",
         "/v2/history",
+        "/v2/trends",
         "/v2/health",
     ]
     selected_schemas: List[str] = [
         "AirQualityData",
         "ResponseMetadata",
         "HistoryQueryResponse",
+        "HistoryTrendResponse",
+        "TrendPoint",
         "HistoricalSnapshotRecord",
         "HealthCheckResponse",
+        "ErrorResponse",
         "HTTPValidationError",
         "ValidationError",
     ]
