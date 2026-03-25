@@ -11,7 +11,8 @@ from core.legacy_runtime import get_connection_pool_manager_callable
 from graceful_degradation import get_graceful_degradation_manager
 from schemas import HealthCheckResponse
 from unified_weather_service import unified_weather_service
-from utils import AQICalculator, check_nmu_risk
+from domain.aqi.calculator import AQICalculator
+from domain.nmu.detector import check_nmu_risk
 
 from .readonly import get_or_create_air_quality_service
 

@@ -28,7 +28,8 @@ from schemas import (
     PressureData,
     ResponseMetadata,
 )
-from utils import AQICalculator, check_nmu_risk, is_blacksky_conditions, get_nmu_recommendations
+from domain.aqi.calculator import AQICalculator
+from domain.nmu.detector import check_nmu_risk, get_nmu_recommendations, is_blacksky_conditions
 from cache import MultiLevelCacheManager
 from connection_pool import get_connection_pool_manager, ServiceType, APIRequest
 from weather_api_manager import weather_api_manager
