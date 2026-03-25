@@ -69,21 +69,6 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 # Stage 1 single source of truth for city metadata.
 CITIES = YAML_CITIES
 
-# Города
-CITIES = {
-    "moscow": {"name": "Москва", "lat": 55.7558, "lon": 37.6176},
-    "spb": {"name": "Санкт-Петербург", "lat": 59.9311, "lon": 30.3609},
-    "magnitogorsk": {"name": "Магнитогорск", "lat": 53.4069, "lon": 58.9794},
-    "ekaterinburg": {"name": "Екатеринбург", "lat": 56.8431, "lon": 60.6454},
-    "novosibirsk": {"name": "Новосибирск", "lat": 55.0084, "lon": 82.9357},
-    "chelyabinsk": {"name": "Челябинск", "lat": 55.1644, "lon": 61.4368},
-    "nizhny": {"name": "Нижний Новгород", "lat": 56.3269, "lon": 44.0075},
-    "samara": {"name": "Самара", "lat": 53.2001, "lon": 50.15},
-    "surgut": {"name": "Сургут", "lat": 61.2540, "lon": 73.3962},
-}
-
-CITIES = YAML_CITIES
-
 
 class AirQualityService:
     """Сервис для работы с API качества воздуха"""
