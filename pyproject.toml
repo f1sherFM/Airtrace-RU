@@ -32,6 +32,9 @@ dependencies = [
     "httpx>=0.25.0",
     "pydantic>=2.4.0",
     "PyYAML>=6.0.2",
+    "SQLAlchemy>=2.0.36",
+    "alembic>=1.14.0",
+    "asyncpg>=0.30.0",
     "python-multipart>=0.0.6",
 ]
 
@@ -41,6 +44,7 @@ test = [
     "pytest-asyncio>=0.21.0",
     "hypothesis>=6.88.0",
     "httpx>=0.25.0",
+    "aiosqlite>=0.20.0",
 ]
 dev = [
     "black>=23.9.0",
@@ -103,6 +107,9 @@ include = [
     "application/**/*.py",
     "core/**/*.py",
     "domain/**/*.py",
+    "infrastructure/**/*.py",
+    "alembic/**/*.py",
+    "alembic.ini",
     "config/*.yaml",
     "web/*.py",
 ]

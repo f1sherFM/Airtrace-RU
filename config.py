@@ -306,6 +306,44 @@ class HistoryConfig:
             self.anomaly_min_relative_delta = 0.55
 
 
+@dataclass
+class DatabaseConfig:
+    """Database runtime configuration for Stage 2 history storage."""
+
+    url: str = field(default_factory=lambda: os.getenv("DATABASE_URL", "").strip())
+    alembic_url: str = field(default_factory=lambda: os.getenv("ALEMBIC_DATABASE_URL", "").strip())
+    history_backend: str = field(default_factory=lambda: os.getenv("HISTORY_STORAGE_BACKEND", "memory").strip().lower())
+    echo: bool = field(default_factory=lambda: os.getenv("DATABASE_ECHO", "false").lower() == "true")
+    pool_size: int = field(default_factory=lambda: int(os.getenv("DATABASE_POOL_SIZE", "5")))
+    max_overflow: int = field(default_factory=lambda: int(os.getenv("DATABASE_MAX_OVERFLOW", "10")))
+    command_timeout_seconds: int = field(default_factory=lambda: int(os.getenv("DATABASE_COMMAND_TIMEOUT_SECONDS", "30")))
+    connect_timeout_seconds: int = field(default_factory=lambda: int(os.getenv("DATABASE_CONNECT_TIMEOUT_SECONDS", "10")))
+    run_migrations_on_startup: bool = field(
+        default_factory=lambda: os.getenv("DATABASE_RUN_MIGRATIONS_ON_STARTUP", "false").lower() == "true"
+    )
+    timescaledb_enabled: bool = field(
+        default_factory=lambda: os.getenv("DATABASE_TIMESCALEDB_ENABLED", "false").lower() == "true"
+    )
+
+    def __post_init__(self):
+        if self.history_backend not in {"memory", "database"}:
+            self.history_backend = "memory"
+        if self.pool_size <= 0:
+            self.pool_size = 5
+        if self.max_overflow < 0:
+            self.max_overflow = 10
+        if self.command_timeout_seconds <= 0:
+            self.command_timeout_seconds = 30
+        if self.connect_timeout_seconds <= 0:
+            self.connect_timeout_seconds = 10
+        if not self.alembic_url:
+            self.alembic_url = self.url
+
+    @property
+    def enabled(self) -> bool:
+        return self.history_backend == "database" and bool(self.url)
+
+
 class ConfigManager:
     """Central configuration manager for the application"""
     
@@ -315,6 +353,7 @@ class ConfigManager:
         self.performance = PerformanceConfig()
         self.api = ApiTransportConfig()
         self.history = HistoryConfig()
+        self.database = DatabaseConfig()
         self.weather_api = WeatherAPIConfig()
         self.request_optimization = RequestOptimizationConfig()
         self._validate_configuration()
@@ -342,6 +381,9 @@ class ConfigManager:
         # Validate WeatherAPI configuration
         if self.weather_api.enabled and not self.weather_api.api_key:
             errors.append("WeatherAPI enabled but no API key provided")
+
+        if self.database.history_backend == "database" and not self.database.url:
+            errors.append("HISTORY_STORAGE_BACKEND=database requires DATABASE_URL")
         
         if errors:
             error_msg = "Configuration validation failed: " + "; ".join(errors)
@@ -413,6 +455,9 @@ class ConfigManager:
         logger.info(f"  Request optimization enabled: {self.performance.request_optimization_enabled}")
         logger.info(f"  Request batching enabled: {self.request_optimization.batching_enabled}")
         logger.info(f"  Request prefetching enabled: {self.request_optimization.prefetching_enabled}")
+        logger.info(f"  History storage backend: {self.database.history_backend}")
+        logger.info(f"  Database enabled: {self.database.enabled}")
+        logger.info(f"  TimescaleDB enabled: {self.database.timescaledb_enabled}")
         logger.info(
             "  History anomaly thresholds: "
             f"window={self.history.anomaly_baseline_window}, "

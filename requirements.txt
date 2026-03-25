@@ -4,6 +4,9 @@ uvicorn[standard]>=0.24.0
 httpx>=0.25.0
 pydantic>=2.4.0
 PyYAML>=6.0.2
+SQLAlchemy>=2.0.36
+alembic>=1.14.0
+asyncpg>=0.30.0
 python-multipart>=0.0.6
 
 # Redis dependencies for distributed caching
@@ -23,6 +26,7 @@ psutil>=5.9.0
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 hypothesis>=6.88.0
+aiosqlite>=0.20.0
 
 # Development dependencies
 black>=23.9.0
