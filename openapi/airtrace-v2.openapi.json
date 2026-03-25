@@ -1,0 +1,1617 @@
+{
+  "components": {
+    "schemas": {
+      "AQIInfo": {
+        "description": "Информация об индексе качества воздуха",
+        "example": {
+          "category": "Умеренное",
+          "color": "#FFFF00",
+          "description": "Качество воздуха приемлемо для большинства людей",
+          "value": 85
+        },
+        "properties": {
+          "category": {
+            "description": "Категория качества воздуха на русском языке",
+            "title": "Category",
+            "type": "string"
+          },
+          "color": {
+            "description": "Цветовой код для отображения",
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "title": "Color",
+            "type": "string"
+          },
+          "description": {
+            "description": "Описание качества воздуха на русском языке",
+            "title": "Description",
+            "type": "string"
+          },
+          "value": {
+            "description": "Значение AQI индекса",
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "value",
+          "category",
+          "color",
+          "description"
+        ],
+        "title": "AQIInfo",
+        "type": "object"
+      },
+      "AirQualityData": {
+        "description": "Основная модель данных о качестве воздуха с интеграцией WeatherAPI",
+        "example": {
+          "aqi": {
+            "category": "Умеренное",
+            "color": "#FFFF00",
+            "description": "Качество воздуха приемлемо для большинства людей",
+            "value": 85
+          },
+          "health_warnings": [],
+          "location": {
+            "latitude": 55.7558,
+            "longitude": 37.6176
+          },
+          "nmu_risk": "low",
+          "pollutants": {
+            "no2": 35.1,
+            "pm10": 45.2,
+            "pm2_5": 25.4,
+            "so2": 12.3
+          },
+          "recommendations": "Чувствительные люди должны ограничить длительное пребывание на улице",
+          "timestamp": "2024-01-15T12:00:00Z",
+          "weather": {
+            "location_name": "Moscow",
+            "pressure": {
+              "pressure_in": 29.92,
+              "pressure_mb": 1013.25,
+              "timestamp": "2024-01-15T12:00:00Z"
+            },
+            "temperature": {
+              "celsius": 15.5,
+              "fahrenheit": 59.9,
+              "source": "weatherapi",
+              "timestamp": "2024-01-15T12:00:00Z"
+            },
+            "wind": {
+              "direction_compass": "S",
+              "direction_degrees": 180,
+              "speed_kmh": 12.5,
+              "speed_mph": 7.8,
+              "timestamp": "2024-01-15T12:00:00Z"
+            }
+          }
+        },
+        "properties": {
+          "aqi": {
+            "$ref": "#/components/schemas/AQIInfo"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Плоское зеркальное поле confidence [0..1] (для единого контракта)",
+            "title": "Confidence"
+          },
+          "data_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Плоское зеркальное поле источника данных (для единого контракта)",
+            "title": "Data Source"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Плоское зеркальное поле свежести данных (для единого контракта)",
+            "title": "Freshness"
+          },
+          "health_warnings": {
+            "description": "Предупреждения о здоровье на русском языке",
+            "items": {
+              "type": "string"
+            },
+            "title": "Health Warnings",
+            "type": "array"
+          },
+          "location": {
+            "$ref": "#/components/schemas/LocationInfo",
+            "description": "Координаты местоположения"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata",
+            "description": "Унифицированная provenance metadata для всех ответов API"
+          },
+          "nmu_risk": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Уровень риска НМУ (low/medium/high)",
+            "title": "Nmu Risk"
+          },
+          "pollutants": {
+            "$ref": "#/components/schemas/PollutantData",
+            "description": "Данные о концентрации загрязнителей"
+          },
+          "recommendations": {
+            "title": "Recommendations",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Временная метка данных в UTC",
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "weather": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WeatherInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Дополнительные данные о погоде от WeatherAPI"
+          }
+        },
+        "required": [
+          "location",
+          "aqi",
+          "pollutants",
+          "recommendations"
+        ],
+        "title": "AirQualityData",
+        "type": "object"
+      },
+      "DataSource": {
+        "description": "Источник данных для исторической платформы",
+        "enum": [
+          "live",
+          "forecast",
+          "historical",
+          "fallback"
+        ],
+        "title": "DataSource",
+        "type": "string"
+      },
+      "ErrorResponse": {
+        "example": {
+          "code": "VALIDATION_ERROR",
+          "details": {
+            "latitude": "Значение должно быть между -90 и 90"
+          },
+          "message": "Некорректные координаты",
+          "timestamp": "2024-01-15T12:00:00Z"
+        },
+        "properties": {
+          "code": {
+            "description": "Код ошибки",
+            "title": "Code",
+            "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Дополнительные детали ошибки",
+            "title": "Details"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Время возникновения ошибки",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "HealthCheckResponse": {
+        "description": "Ответ health check эндпоинта",
+        "example": {
+          "services": {
+            "api": "healthy",
+            "cache": "healthy",
+            "external_api": "healthy"
+          },
+          "status": "healthy",
+          "timestamp": "2024-01-15T12:00:00Z"
+        },
+        "properties": {
+          "services": {
+            "additionalProperties": true,
+            "title": "Services",
+            "type": "object"
+          },
+          "status": {
+            "description": "Общий статус сервиса (healthy/degraded/unhealthy)",
+            "title": "Status",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Время проверки",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "services"
+        ],
+        "title": "HealthCheckResponse",
+        "type": "object"
+      },
+      "HistoricalSnapshotRecord": {
+        "description": "Каноническая запись часового среза качества воздуха",
+        "example": {
+          "aqi": 85,
+          "city_code": "moscow",
+          "confidence": 0.92,
+          "data_source": "live",
+          "freshness": "fresh",
+          "ingested_at": "2026-02-15T18:03:21Z",
+          "latitude": 55.7558,
+          "longitude": 37.6176,
+          "pollutants": {
+            "no2": 35.1,
+            "o3": 85.7,
+            "pm10": 45.2,
+            "pm2_5": 25.4,
+            "so2": 12.3
+          },
+          "snapshot_hour_utc": "2026-02-15T18:00:00Z"
+        },
+        "properties": {
+          "anomaly_baseline_aqi": {
+            "anyOf": [
+              {
+                "maximum": 500.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Baseline AQI, относительно которого детектирована аномалия",
+            "title": "Anomaly Baseline Aqi"
+          },
+          "anomaly_detected": {
+            "default": false,
+            "description": "Флаг аномалии относительно локального baseline",
+            "title": "Anomaly Detected",
+            "type": "boolean"
+          },
+          "anomaly_score": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Нормализованная сила аномалии (чем больше, тем сильнее отклонение)",
+            "title": "Anomaly Score"
+          },
+          "anomaly_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Тип аномалии: spike/dropout",
+            "title": "Anomaly Type"
+          },
+          "aqi": {
+            "description": "Индекс качества воздуха AQI",
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Aqi",
+            "type": "integer"
+          },
+          "city_code": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 2,
+                "pattern": "^[a-z0-9_-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Канонический код города (для преднастроенных городов)",
+            "title": "City Code"
+          },
+          "confidence": {
+            "description": "Уверенность в данных [0..1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "data_source": {
+            "$ref": "#/components/schemas/DataSource",
+            "description": "Источник данных"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/HistoryFreshness"
+          },
+          "ingested_at": {
+            "description": "Время записи в хранилище",
+            "title": "Ingested At",
+            "type": "string"
+          },
+          "latitude": {
+            "description": "Широта",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Долгота",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/ResponseMetadata",
+            "description": "Унифицированная provenance metadata для history API"
+          },
+          "pollutants": {
+            "$ref": "#/components/schemas/PollutantData",
+            "description": "Концентрации загрязнителей"
+          },
+          "snapshot_hour_utc": {
+            "description": "Начало часа в UTC",
+            "title": "Snapshot Hour Utc",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_hour_utc",
+          "latitude",
+          "longitude",
+          "aqi",
+          "pollutants",
+          "data_source",
+          "freshness",
+          "confidence"
+        ],
+        "title": "HistoricalSnapshotRecord",
+        "type": "object"
+      },
+      "HistoryFreshness": {
+        "description": "Уровень свежести исторических данных",
+        "enum": [
+          "fresh",
+          "stale",
+          "expired"
+        ],
+        "title": "HistoryFreshness",
+        "type": "string"
+      },
+      "HistoryQueryResponse": {
+        "description": "Ответ history API с пагинацией",
+        "example": {
+          "items": [],
+          "page": 1,
+          "page_size": 50,
+          "range": "24h",
+          "total": 3
+        },
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HistoricalSnapshotRecord"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "description": "Номер страницы (с 1)",
+            "minimum": 1.0,
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "range": {
+            "$ref": "#/components/schemas/HistoryRange",
+            "description": "Примененный диапазон выборки"
+          },
+          "total": {
+            "description": "Общее число найденных записей",
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "range",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "title": "HistoryQueryResponse",
+        "type": "object"
+      },
+      "HistoryRange": {
+        "enum": [
+          "24h",
+          "7d",
+          "30d"
+        ],
+        "title": "HistoryRange",
+        "type": "string"
+      },
+      "HistorySortOrder": {
+        "description": "Sort order for historical records.",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "title": "HistorySortOrder",
+        "type": "string"
+      },
+      "HistoryTrendResponse": {
+        "description": "Stable read-only trend response for the public v2 API.",
+        "properties": {
+          "aggregation": {
+            "default": "day",
+            "title": "Aggregation",
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/TrendLocation"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "range": {
+            "$ref": "#/components/schemas/TrendRange"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "trend": {
+            "$ref": "#/components/schemas/TrendDirection"
+          }
+        },
+        "required": [
+          "range",
+          "location",
+          "trend",
+          "summary"
+        ],
+        "title": "HistoryTrendResponse",
+        "type": "object"
+      },
+      "LocationInfo": {
+        "description": "Информация о местоположении",
+        "example": {
+          "latitude": 55.7558,
+          "longitude": 37.6176
+        },
+        "properties": {
+          "latitude": {
+            "description": "Широта",
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Долгота",
+            "title": "Longitude",
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "title": "LocationInfo",
+        "type": "object"
+      },
+      "PollutantData": {
+        "description": "Данные о загрязнителях воздуха",
+        "example": {
+          "no2": 35.1,
+          "o3": 85.7,
+          "pm10": 45.2,
+          "pm2_5": 25.4,
+          "so2": 12.3
+        },
+        "properties": {
+          "no2": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "NO2 концентрация в мкг/м³",
+            "title": "No2"
+          },
+          "o3": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "O3 концентрация в мкг/м³",
+            "title": "O3"
+          },
+          "pm10": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PM10 концентрация в мкг/м³",
+            "title": "Pm10"
+          },
+          "pm2_5": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PM2.5 концентрация в мкг/м³",
+            "title": "Pm2 5"
+          },
+          "so2": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SO2 концентрация в мкг/м³",
+            "title": "So2"
+          }
+        },
+        "title": "PollutantData",
+        "type": "object"
+      },
+      "PressureData": {
+        "description": "Atmospheric pressure data from WeatherAPI",
+        "properties": {
+          "pressure_in": {
+            "description": "Атмосферное давление в дюймах ртутного столба",
+            "title": "Pressure In",
+            "type": "number"
+          },
+          "pressure_mb": {
+            "description": "Атмосферное давление в миллибарах",
+            "title": "Pressure Mb",
+            "type": "number"
+          },
+          "timestamp": {
+            "description": "Временная метка данных",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pressure_mb",
+          "pressure_in"
+        ],
+        "title": "PressureData",
+        "type": "object"
+      },
+      "ResponseMetadata": {
+        "description": "Единая metadata-модель происхождения и качества данных",
+        "properties": {
+          "cache_age_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Возраст данных в кэше в секундах (если применимо)",
+            "title": "Cache Age Seconds"
+          },
+          "confidence": {
+            "default": 0.9,
+            "description": "Уверенность в данных [0..1]",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "confidence_explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "Calculated from source availability and fallback usage",
+            "description": "Краткое объяснение расчета confidence",
+            "title": "Confidence Explanation"
+          },
+          "data_source": {
+            "default": "live",
+            "description": "Источник данных: live/forecast/historical/fallback",
+            "title": "Data Source",
+            "type": "string"
+          },
+          "fallback_used": {
+            "default": false,
+            "description": "Использовался ли fallback-путь",
+            "title": "Fallback Used",
+            "type": "boolean"
+          },
+          "freshness": {
+            "default": "fresh",
+            "title": "Freshness",
+            "type": "string"
+          }
+        },
+        "title": "ResponseMetadata",
+        "type": "object"
+      },
+      "TemperatureData": {
+        "description": "Temperature data from WeatherAPI",
+        "properties": {
+          "celsius": {
+            "description": "Температура в градусах Цельсия",
+            "title": "Celsius",
+            "type": "number"
+          },
+          "fahrenheit": {
+            "description": "Температура в градусах Фаренгейта",
+            "title": "Fahrenheit",
+            "type": "number"
+          },
+          "source": {
+            "default": "weatherapi",
+            "description": "Источник данных",
+            "title": "Source",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Временная метка данных",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "celsius",
+          "fahrenheit"
+        ],
+        "title": "TemperatureData",
+        "type": "object"
+      },
+      "TrendDirection": {
+        "description": "Direction of change for aggregated AQI trends.",
+        "enum": [
+          "improving",
+          "stable",
+          "worsening",
+          "insufficient_data"
+        ],
+        "title": "TrendDirection",
+        "type": "string"
+      },
+      "TrendLocation": {
+        "description": "Location descriptor used by trend responses.",
+        "properties": {
+          "city_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City Code"
+          },
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "title": "TrendLocation",
+        "type": "object"
+      },
+      "TrendPoint": {
+        "description": "Single aggregated trend data point.",
+        "properties": {
+          "aqi_avg": {
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Aqi Avg",
+            "type": "number"
+          },
+          "aqi_max": {
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Aqi Max",
+            "type": "integer"
+          },
+          "aqi_min": {
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Aqi Min",
+            "type": "integer"
+          },
+          "avg_confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Avg Confidence",
+            "type": "number"
+          },
+          "dominant_source": {
+            "description": "Dominant provenance source for the bucket",
+            "title": "Dominant Source",
+            "type": "string"
+          },
+          "sample_count": {
+            "minimum": 0.0,
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "timestamp": {
+            "description": "UTC start of the aggregation bucket",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "timestamp",
+          "aqi_min",
+          "aqi_max",
+          "aqi_avg",
+          "sample_count",
+          "avg_confidence",
+          "dominant_source"
+        ],
+        "title": "TrendPoint",
+        "type": "object"
+      },
+      "TrendRange": {
+        "description": "Supported ranges for trends endpoint.",
+        "enum": [
+          "7d",
+          "30d"
+        ],
+        "title": "TrendRange",
+        "type": "string"
+      },
+      "WeatherInfo": {
+        "description": "Combined weather information from WeatherAPI",
+        "properties": {
+          "location_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Название местоположения",
+            "title": "Location Name"
+          },
+          "pressure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PressureData"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Данные об атмосферном давлении"
+          },
+          "temperature": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemperatureData"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Данные о температуре"
+          },
+          "wind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WindData"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Данные о ветре"
+          }
+        },
+        "title": "WeatherInfo",
+        "type": "object"
+      },
+      "WindData": {
+        "description": "Wind data from WeatherAPI",
+        "properties": {
+          "direction_compass": {
+            "description": "Направление ветра по компасу",
+            "title": "Direction Compass",
+            "type": "string"
+          },
+          "direction_degrees": {
+            "description": "Направление ветра в градусах",
+            "title": "Direction Degrees",
+            "type": "integer"
+          },
+          "speed_kmh": {
+            "title": "Speed Kmh",
+            "type": "number"
+          },
+          "speed_mph": {
+            "title": "Speed Mph",
+            "type": "number"
+          },
+          "timestamp": {
+            "description": "Временная метка данных",
+            "title": "Timestamp",
+            "type": "string"
+          }
+        },
+        "required": [
+          "speed_kmh",
+          "speed_mph",
+          "direction_degrees",
+          "direction_compass"
+        ],
+        "title": "WindData",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Stable read-only v2 contract for AirTrace RU.",
+    "title": "AirTrace RU Public API v2",
+    "version": "0.3.1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v2/current": {
+      "get": {
+        "operationId": "get_current_air_quality_v2_v2_current_get",
+        "parameters": [
+          {
+            "description": "Latitude",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "description": "Latitude",
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Longitude",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "description": "Longitude",
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirQualityData"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Current Air Quality V2"
+      }
+    },
+    "/v2/forecast": {
+      "get": {
+        "operationId": "get_forecast_air_quality_v2_v2_forecast_get",
+        "parameters": [
+          {
+            "description": "Latitude",
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "description": "Latitude",
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Longitude",
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "description": "Longitude",
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Forecast horizon in hours",
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "default": 24,
+              "description": "Forecast horizon in hours",
+              "maximum": 168,
+              "minimum": 1,
+              "title": "Hours",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AirQualityData"
+                  },
+                  "title": "Response Get Forecast Air Quality V2 V2 Forecast Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Forecast Air Quality V2"
+      }
+    },
+    "/v2/health": {
+      "get": {
+        "operationId": "health_check_v2_v2_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Health Check V2"
+      }
+    },
+    "/v2/history": {
+      "get": {
+        "operationId": "get_history_v2_v2_history_get",
+        "parameters": [
+          {
+            "description": "History range preset",
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/HistoryRange",
+              "default": "24h",
+              "description": "History range preset"
+            }
+          },
+          {
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "Page number",
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size",
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Sort order: desc = newest first, asc = oldest first",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/HistorySortOrder",
+              "default": "desc",
+              "description": "Sort order: desc = newest first, asc = oldest first"
+            }
+          },
+          {
+            "description": "Configured city code",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Configured city code",
+              "title": "City"
+            }
+          },
+          {
+            "description": "Custom latitude",
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Custom latitude",
+              "title": "Lat"
+            }
+          },
+          {
+            "description": "Custom longitude",
+            "in": "query",
+            "name": "lon",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Custom longitude",
+              "title": "Lon"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryQueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get History V2"
+      }
+    },
+    "/v2/trends": {
+      "get": {
+        "operationId": "get_history_trends_v2_v2_trends_get",
+        "parameters": [
+          {
+            "description": "Trend range preset",
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/TrendRange",
+              "default": "7d",
+              "description": "Trend range preset"
+            }
+          },
+          {
+            "description": "Configured city code",
+            "in": "query",
+            "name": "city",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "minLength": 2,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Configured city code",
+              "title": "City"
+            }
+          },
+          {
+            "description": "Custom latitude",
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Custom latitude",
+              "title": "Lat"
+            }
+          },
+          {
+            "description": "Custom longitude",
+            "in": "query",
+            "name": "lon",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Custom longitude",
+              "title": "Lon"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryTrendResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get History Trends V2"
+      }
+    }
+  }
+}

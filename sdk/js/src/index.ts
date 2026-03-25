@@ -10,8 +10,9 @@ export type AirTraceClientOptions = {
 };
 
 export type AirTraceErrorPayload = {
-  detail?: string;
-  error?: string;
+  code?: string;
+  message?: string;
+  details?: unknown;
   [key: string]: unknown;
 };
 
@@ -79,6 +80,10 @@ export class AirTraceClient {
     throw lastError;
   }
 
+  getHealth(): Promise<unknown> {
+    return this.request("/v2/health", {});
+  }
+
   getCurrent(coords: Coordinates): Promise<unknown> {
     return this.request("/v2/current", {
       lat: String(coords.lat),
@@ -86,23 +91,54 @@ export class AirTraceClient {
     });
   }
 
-  getForecast(coords: Coordinates): Promise<unknown> {
+  getForecast(coords: Coordinates, hours = 24): Promise<unknown> {
     return this.request("/v2/forecast", {
       lat: String(coords.lat),
       lon: String(coords.lon),
+      hours: String(hours),
     });
   }
 
-  getHistoryByCity(city: string, range = "24h", page = 1, pageSize = 20): Promise<unknown> {
-    return this.request("/v2/history", {
-      city,
-      range,
-      page: String(page),
-      page_size: String(pageSize),
-    });
+  getHistory(options: {
+    range?: string;
+    page?: number;
+    pageSize?: number;
+    sort?: "asc" | "desc";
+    city?: string;
+    lat?: number;
+    lon?: number;
+  } = {}): Promise<unknown> {
+    const params: Record<string, string> = {
+      range: options.range ?? "24h",
+      page: String(options.page ?? 1),
+      page_size: String(options.pageSize ?? 50),
+      sort: options.sort ?? "desc",
+    };
+    if (options.city) params.city = options.city;
+    if (options.lat !== undefined && options.lon !== undefined) {
+      params.lat = String(options.lat);
+      params.lon = String(options.lon);
+    }
+    return this.request("/v2/history", params);
   }
 
-  getHealth(): Promise<unknown> {
-    return this.request("/v2/health", {});
+  getHistoryByCity(city: string, range = "24h", page = 1, pageSize = 50, sort: "asc" | "desc" = "desc"): Promise<unknown> {
+    return this.getHistory({ city, range, page, pageSize, sort });
+  }
+
+  getTrends(options: { range?: string; city?: string; lat?: number; lon?: number } = {}): Promise<unknown> {
+    const params: Record<string, string> = {
+      range: options.range ?? "7d",
+    };
+    if (options.city) params.city = options.city;
+    if (options.lat !== undefined && options.lon !== undefined) {
+      params.lat = String(options.lat);
+      params.lon = String(options.lon);
+    }
+    return this.request("/v2/trends", params);
+  }
+
+  getTrendsByCity(city: string, range = "7d"): Promise<unknown> {
+    return this.getTrends({ city, range });
   }
 }

@@ -1,8 +1,10 @@
-# AirTrace RU JS SDK (starter)
+# AirTrace RU JS SDK
 
-Minimal typed JS SDK starter for AirTrace RU API v2.
+Generated JavaScript SDK for the stable AirTrace RU public API v2.
 
-## Install (local starter)
+Source of truth: `openapi/airtrace-v2.openapi.json`
+
+## Install (local)
 
 ```bash
 cd sdk/js
@@ -18,10 +20,16 @@ import { AirTraceClient } from "@airtrace-ru/sdk-js";
 const client = new AirTraceClient({ baseUrl: "http://localhost:8000" });
 
 const health = await client.getHealth();
-const now = await client.getCurrent({ lat: 55.7558, lon: 37.6176 });
-console.log({ health, now });
+const current = await client.getCurrent({ lat: 55.7558, lon: 37.6176 });
+const history = await client.getHistoryByCity("moscow", "24h", 1, 50, "desc");
+const trends = await client.getTrendsByCity("moscow", "7d");
+console.log({ health, current, history, trends });
 ```
 
-## Versioning
+## Supported endpoints
 
-Current starter version: `0.3.1` (see `package.json`).
+- `/v2/health`
+- `/v2/current`
+- `/v2/forecast`
+- `/v2/history`
+- `/v2/trends`

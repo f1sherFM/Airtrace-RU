@@ -18,6 +18,8 @@ class AirTraceError(Exception):
 
 
 class AirTraceClient:
+    """Generated from openapi/airtrace-v2.openapi.json."""
+
     def __init__(
         self,
         *,
@@ -25,12 +27,13 @@ class AirTraceClient:
         timeout: float = 10.0,
         retries: int = 2,
         retry_delay: float = 0.3,
+        transport: Optional[httpx.BaseTransport] = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.retries = max(0, retries)
         self.retry_delay = max(0.0, retry_delay)
-        self._client = httpx.Client(timeout=self.timeout)
+        self._client = httpx.Client(timeout=self.timeout, transport=transport)
 
     def close(self) -> None:
         self._client.close()
@@ -74,11 +77,52 @@ class AirTraceClient:
     def get_current(self, *, lat: float, lon: float) -> Any:
         return self._request("/v2/current", {"lat": lat, "lon": lon})
 
-    def get_forecast(self, *, lat: float, lon: float) -> Any:
-        return self._request("/v2/forecast", {"lat": lat, "lon": lon})
+    def get_forecast(self, *, lat: float, lon: float, hours: int = 24) -> Any:
+        return self._request("/v2/forecast", {"lat": lat, "lon": lon, "hours": hours})
 
-    def get_history_by_city(self, *, city: str, range: str = "24h", page: int = 1, page_size: int = 20) -> Any:
-        return self._request(
-            "/v2/history",
-            {"city": city, "range": range, "page": page, "page_size": page_size},
-        )
+    def get_history(
+        self,
+        *,
+        range: str = "24h",
+        page: int = 1,
+        page_size: int = 50,
+        sort: str = "desc",
+        city: Optional[str] = None,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+    ) -> Any:
+        params: Dict[str, Any] = {
+            "range": range,
+            "page": page,
+            "page_size": page_size,
+            "sort": sort,
+        }
+        if city is not None:
+            params["city"] = city
+        if lat is not None and lon is not None:
+            params["lat"] = lat
+            params["lon"] = lon
+        return self._request("/v2/history", params)
+
+    def get_history_by_city(
+        self,
+        *,
+        city: str,
+        range: str = "24h",
+        page: int = 1,
+        page_size: int = 50,
+        sort: str = "desc",
+    ) -> Any:
+        return self.get_history(city=city, range=range, page=page, page_size=page_size, sort=sort)
+
+    def get_trends(self, *, range: str = "7d", city: Optional[str] = None, lat: Optional[float] = None, lon: Optional[float] = None) -> Any:
+        params: Dict[str, Any] = {"range": range}
+        if city is not None:
+            params["city"] = city
+        if lat is not None and lon is not None:
+            params["lat"] = lat
+            params["lon"] = lon
+        return self._request("/v2/trends", params)
+
+    def get_trends_by_city(self, *, city: str, range: str = "7d") -> Any:
+        return self.get_trends(city=city, range=range)

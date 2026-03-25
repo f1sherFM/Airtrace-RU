@@ -1,6 +1,11 @@
 # Public API v2 Guide
 
-Updated public integration guide for AirTrace RU API v2 (Issue #30).
+Stable read-only integration guide for AirTrace RU API v2.
+
+Source of truth:
+- `openapi/airtrace-v2.openapi.json`
+- `tests/test_v2_contract.py`
+- `tests/test_contract_snapshot.py`
 
 ## Base URL
 
@@ -16,6 +21,14 @@ http://localhost:8000
 curl -fsS "http://localhost:8000/v2/health"
 ```
 
+## Stable readonly endpoints
+
+- `/v2/current`
+- `/v2/forecast`
+- `/v2/history`
+- `/v2/trends`
+- `/v2/health`
+
 ## Current air quality
 
 ```bash
@@ -25,46 +38,99 @@ curl -fsS "http://localhost:8000/v2/current?lat=55.7558&lon=37.6176"
 ## Forecast
 
 ```bash
-curl -fsS "http://localhost:8000/v2/forecast?lat=55.7558&lon=37.6176"
+curl -fsS "http://localhost:8000/v2/forecast?lat=55.7558&lon=37.6176&hours=24"
 ```
 
 ## History (city preset)
 
+Newest first:
+
 ```bash
-curl -fsS "http://localhost:8000/v2/history?range=24h&page=1&page_size=20&city=moscow"
+curl -fsS "http://localhost:8000/v2/history?range=24h&page=1&page_size=20&sort=desc&city=moscow"
+```
+
+Oldest first:
+
+```bash
+curl -fsS "http://localhost:8000/v2/history?range=7d&page=1&page_size=20&sort=asc&city=moscow"
 ```
 
 ## History (custom coordinates)
 
 ```bash
-curl -fsS "http://localhost:8000/v2/history?range=24h&page=1&page_size=20&lat=55.7558&lon=37.6176"
+curl -fsS "http://localhost:8000/v2/history?range=24h&page=1&page_size=20&sort=desc&lat=55.7558&lon=37.6176"
 ```
 
-## Verified curl snippets
+## Trends
 
-The snippets above are intentionally aligned with executable API contract paths:
+By city:
 
-- `/v2/current`
-- `/v2/forecast`
-- `/v2/history`
-- `/v2/health`
+```bash
+curl -fsS "http://localhost:8000/v2/trends?range=7d&city=moscow"
+```
 
-Contract references:
+By custom coordinates:
 
-- `tests/test_v2_contract.py`
-- `tests/test_contract_snapshot.py`
+```bash
+curl -fsS "http://localhost:8000/v2/trends?range=30d&lat=55.7558&lon=37.6176"
+```
+
+## Canonical provenance metadata
+
+For `current`, `forecast`, and history items, `metadata` is the canonical provenance block:
+
+- `data_source`
+- `freshness`
+- `confidence`
+- `confidence_explanation`
+- `fallback_used`
+- `cache_age_seconds`
+
+Flat mirrors may still appear for compatibility, but clients should read provenance from `metadata`.
+
+## Error model
+
+All `/v2/*` failures use one flat JSON schema:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "Request validation failed",
+  "details": [],
+  "timestamp": "2026-03-25T12:00:00+00:00"
+}
+```
+
+Stable codes in Stage 3:
+
+- `VALIDATION_ERROR`
+- `SERVICE_UNAVAILABLE`
+- `RATE_LIMIT_EXCEEDED`
+- `NOT_FOUND`
+- `INTERNAL_ERROR`
+
+## Readonly scope
+
+Stage 3 is read-only. Alerts and other write-paths are intentionally deferred to Stage 4.
 
 ## Migration notes (v1 -> v2)
 
 - Keep existing integrations on v1 routes while migrating incrementally.
 - For new integrations, use `/v2/*` routes by default.
-- Core query parameters are preserved for `current`, `forecast`, and `history`.
-- Health contract is normalized to `{status, details}` in v2.
-- v1 and v2 currently return compatible payloads for core routes.
+- `v1` remains a legacy adapter over the new core.
+- `v2` no longer aims for byte-for-byte equality with `v1`; it is the stable public contract.
+- `history` adds `sort=asc|desc` in `v2`.
+- `trends` is new in `v2`.
 
-### Route mapping
+## Route mapping
 
 - `/weather/current` -> `/v2/current`
 - `/weather/forecast` -> `/v2/forecast`
 - `/history` -> `/v2/history`
 - `/health` -> `/v2/health`
+
+## Deferred items
+
+- Sparse fieldsets via `fields=...`
+- Alert write APIs
+- External SDK publication
