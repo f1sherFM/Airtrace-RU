@@ -7,7 +7,6 @@ from typing import Any, Optional
 
 from sqlalchemy import (
     JSON,
-    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -38,7 +37,7 @@ class LocationModel(Base):
         CheckConstraint("longitude >= -180 AND longitude <= 180", name="longitude_range"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     city_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
@@ -64,7 +63,7 @@ class AirQualitySnapshotModel(Base):
         CheckConstraint("confidence >= 0 AND confidence <= 1", name="confidence_range"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     location_id: Mapped[int] = mapped_column(ForeignKey("locations.id", ondelete="CASCADE"), nullable=False, index=True)
     snapshot_hour_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
     source_timestamp_utc: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -94,7 +93,7 @@ class DataProvenanceModel(Base):
         CheckConstraint("confidence >= 0 AND confidence <= 1", name="provenance_confidence_range"),
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     snapshot_id: Mapped[int] = mapped_column(ForeignKey("air_quality_snapshots.id", ondelete="CASCADE"), nullable=False, unique=True)
     data_source: Mapped[str] = mapped_column(String(16), nullable=False)
     freshness: Mapped[str] = mapped_column(String(16), nullable=False)

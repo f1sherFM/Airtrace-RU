@@ -15,7 +15,7 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "locations",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
         sa.Column("city_code", sa.String(length=64), nullable=True),
         sa.Column("name", sa.String(length=128), nullable=False),
         sa.Column("latitude", sa.Float(), nullable=False),
@@ -32,8 +32,8 @@ def upgrade() -> None:
 
     op.create_table(
         "air_quality_snapshots",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
-        sa.Column("location_id", sa.BigInteger(), nullable=False),
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("location_id", sa.Integer(), nullable=False),
         sa.Column("snapshot_hour_utc", sa.DateTime(timezone=True), nullable=False),
         sa.Column("source_timestamp_utc", sa.DateTime(timezone=True), nullable=True),
         sa.Column("aqi", sa.SmallInteger(), nullable=False),
@@ -59,8 +59,8 @@ def upgrade() -> None:
 
     op.create_table(
         "data_provenance",
-        sa.Column("id", sa.BigInteger(), primary_key=True, autoincrement=True),
-        sa.Column("snapshot_id", sa.BigInteger(), nullable=False),
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("snapshot_id", sa.Integer(), nullable=False),
         sa.Column("data_source", sa.String(length=16), nullable=False),
         sa.Column("freshness", sa.String(length=16), nullable=False),
         sa.Column("confidence", sa.Numeric(4, 3), nullable=False),
