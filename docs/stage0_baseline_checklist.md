@@ -2,6 +2,8 @@
 
 This checklist defines the minimum baseline and safety-net work required before major v2 refactoring begins.
 
+Protected surfaces are listed in [`stage0_protected_surfaces.md`](stage0_protected_surfaces.md).
+
 ## Baseline Inventory
 
 - [ ] Identify all legacy `v1` endpoints that must remain behavior-compatible.
@@ -29,6 +31,7 @@ This checklist defines the minimum baseline and safety-net work required before 
 - [ ] Add no-BOM checks for text assets.
 - [ ] Add mojibake pattern detection for protected files.
 - [ ] Validate `charset=utf-8` behavior for HTML responses.
+- [ ] Keep `README.md` outside strict Stage 0 enforcement until legacy mojibake cleanup is done separately.
 
 ## Migration Readiness
 
