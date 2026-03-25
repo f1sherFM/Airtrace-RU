@@ -3,6 +3,7 @@ fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 httpx>=0.25.0
 pydantic>=2.4.0
+PyYAML>=6.0.2
 python-multipart>=0.0.6
 
 # Redis dependencies for distributed caching

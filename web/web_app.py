@@ -36,7 +36,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from http_transport import create_async_client
-from cities_data import CITIES
+from cities_data import CITIES as YAML_CITIES
 
 app = FastAPI(title="AirTrace RU Web Interface")
 logger = logging.getLogger(__name__)
@@ -66,6 +66,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Конфигурация
 API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
 
+# Stage 1 single source of truth for city metadata.
+CITIES = YAML_CITIES
+
 # Города
 CITIES = {
     "moscow": {"name": "Москва", "lat": 55.7558, "lon": 37.6176},
@@ -78,6 +81,9 @@ CITIES = {
     "samara": {"name": "Самара", "lat": 53.2001, "lon": 50.15},
     "surgut": {"name": "Сургут", "lat": 61.2540, "lon": 73.3962},
 }
+
+CITIES = YAML_CITIES
+
 
 class AirQualityService:
     """Сервис для работы с API качества воздуха"""
