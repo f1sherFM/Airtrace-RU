@@ -8,18 +8,17 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Protocol, Set, Tuple
 
+from application.services.history_storage import apply_anomaly_metadata
+from application.services.quality import QualityScorer
 from schemas import (
     AirQualityData,
     DataSource,
     HistoricalSnapshotRecord,
-    HistoryFreshness,
     PollutantData,
     ResponseMetadata,
 )
-from confidence_scoring import ConfidenceInputs, calculate_confidence
-from anomaly_detection import HourlyAnomalyDetector
 from config import config
 
 logger = logging.getLogger(__name__)
@@ -33,16 +32,27 @@ DEFAULT_CANONICAL_LOCATIONS: List[Dict[str, Any]] = [
 ]
 
 
+class HistoricalSnapshotStoreProtocol(Protocol):
+    async def write_snapshot(self, dedupe_key: str, record: HistoricalSnapshotRecord) -> bool: ...
+
+    async def query_snapshots(
+        self,
+        *,
+        start_utc: datetime,
+        end_utc: datetime,
+        city_code: Optional[str] = None,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> Dict[str, Any]: ...
+
+
 class InMemoryHistoricalSnapshotStore:
     """Simple in-memory snapshot store with dedupe support for v4 bootstrap."""
 
     def __init__(self):
         self._records: Dict[str, HistoricalSnapshotRecord] = {}
-        self._anomaly_detector = HourlyAnomalyDetector(
-            baseline_window=config.history.anomaly_baseline_window,
-            min_absolute_delta=config.history.anomaly_min_absolute_delta,
-            min_relative_delta=config.history.anomaly_min_relative_delta,
-        )
 
     async def write_snapshot(self, dedupe_key: str, record: HistoricalSnapshotRecord) -> bool:
         """Write snapshot and return True if inserted, False if duplicate."""
@@ -82,20 +92,8 @@ class InMemoryHistoricalSnapshotStore:
                 continue
             items.append(record.model_copy(deep=True))
 
-        # Anomaly detection should run chronologically against local baseline.
-        items.sort(key=lambda r: r.snapshot_hour_utc)
-        previous_aqi: List[float] = []
-        for item in items:
-            result = self._anomaly_detector.evaluate(current_value=float(item.aqi), previous_values=previous_aqi)
-            item.anomaly_detected = result.detected
-            item.anomaly_type = result.anomaly_type
-            item.anomaly_score = round(result.score, 3)
-            item.anomaly_baseline_aqi = round(result.baseline, 2) if result.baseline > 0 else None
-            previous_aqi.append(float(item.aqi))
-
-        items.sort(key=lambda r: r.snapshot_hour_utc, reverse=True)
         total = len(items)
-        paged = items[offset : offset + limit]
+        paged = apply_anomaly_metadata(items)[offset : offset + limit]
         return {"total": total, "items": paged}
 
 
@@ -134,7 +132,8 @@ class HistoryIngestionPipeline:
     def __init__(
         self,
         fetch_current_data: Callable[[float, float], Awaitable[AirQualityData]],
-        snapshot_store: InMemoryHistoricalSnapshotStore,
+        snapshot_store: HistoricalSnapshotStoreProtocol,
+        persistence_service: Optional[Any] = None,
         dead_letter_sink: Optional[Any] = None,
         canonical_locations: Optional[List[Dict[str, Any]]] = None,
         max_retries: int = 3,
@@ -142,11 +141,13 @@ class HistoryIngestionPipeline:
     ):
         self.fetch_current_data = fetch_current_data
         self.snapshot_store = snapshot_store
+        self.persistence_service = persistence_service
         self.dead_letter_sink = dead_letter_sink
         self.canonical_locations = canonical_locations or DEFAULT_CANONICAL_LOCATIONS
         self.max_retries = max_retries
         self.retry_delay_seconds = retry_delay_seconds
         self._custom_coordinates: Set[Tuple[float, float]] = set()
+        self._quality_scorer = QualityScorer()
 
     def register_custom_coordinates(self, lat: float, lon: float) -> None:
         """Register custom coordinates to be ingested on schedule."""
@@ -175,15 +176,6 @@ class HistoryIngestionPipeline:
         normalized = dt.astimezone(timezone.utc)
         return normalized.replace(minute=0, second=0, microsecond=0)
 
-    @staticmethod
-    def _calculate_freshness(record_time: datetime) -> HistoryFreshness:
-        age_seconds = (datetime.now(timezone.utc) - record_time.astimezone(timezone.utc)).total_seconds()
-        if age_seconds <= 3600:
-            return HistoryFreshness.FRESH
-        if age_seconds <= 6 * 3600:
-            return HistoryFreshness.STALE
-        return HistoryFreshness.EXPIRED
-
     async def ingest_location(
         self, lat: float, lon: float, city_code: Optional[str] = None, data_source: DataSource = DataSource.LIVE
     ) -> bool:
@@ -194,17 +186,11 @@ class HistoryIngestionPipeline:
                 current_data = await self.fetch_current_data(lat, lon)
                 snapshot_hour_utc = self._truncate_to_hour(current_data.timestamp)
                 dedupe_key = self._build_dedupe_key(city_code, lat, lon, snapshot_hour_utc, current_data)
-                freshness = self._calculate_freshness(current_data.timestamp)
-                cache_age_seconds = max(
-                    0, int((datetime.now(timezone.utc) - current_data.timestamp.astimezone(timezone.utc)).total_seconds())
-                )
-                confidence_score, confidence_reason = calculate_confidence(
-                    ConfidenceInputs(
-                        data_source=data_source.value,
-                        source_available=(data_source != DataSource.FALLBACK),
-                        cache_age_seconds=cache_age_seconds,
-                        fallback_used=(data_source == DataSource.FALLBACK),
-                    )
+                quality = self._quality_scorer.score_snapshot(
+                    record_time=current_data.timestamp,
+                    data_source=data_source,
+                    source_available=(data_source != DataSource.FALLBACK),
+                    fallback_used=(data_source == DataSource.FALLBACK),
                 )
 
                 snapshot = HistoricalSnapshotRecord(
@@ -215,19 +201,26 @@ class HistoryIngestionPipeline:
                     aqi=current_data.aqi.value,
                     pollutants=PollutantData(**current_data.pollutants.model_dump()),
                     data_source=data_source,
-                    freshness=freshness,
-                    confidence=confidence_score,
+                    freshness=quality.freshness,
+                    confidence=quality.confidence,
                     metadata=ResponseMetadata(
                         data_source=data_source.value,
-                        freshness=freshness.value,
-                        confidence=confidence_score,
-                        confidence_explanation=confidence_reason,
-                        fallback_used=(data_source == DataSource.FALLBACK),
-                        cache_age_seconds=cache_age_seconds,
+                        freshness=quality.freshness.value,
+                        confidence=quality.confidence,
+                        confidence_explanation=quality.confidence_explanation,
+                        fallback_used=quality.fallback_used,
+                        cache_age_seconds=quality.cache_age_seconds,
                     ),
                 )
 
-                inserted = await self.snapshot_store.write_snapshot(dedupe_key, snapshot)
+                if self.persistence_service is not None:
+                    inserted = await self.persistence_service.persist_snapshot_record(
+                        record=snapshot,
+                        dedupe_key=dedupe_key,
+                        source_timestamp_utc=current_data.timestamp,
+                    )
+                else:
+                    inserted = await self.snapshot_store.write_snapshot(dedupe_key, snapshot)
                 if not inserted:
                     logger.debug("Historical snapshot duplicate skipped: %s", dedupe_key)
                 return True

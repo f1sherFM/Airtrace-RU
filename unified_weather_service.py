@@ -8,7 +8,7 @@ to provide comprehensive environmental information with fallback handling.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Awaitable, Callable, Dict, Any, List, Optional, Tuple
 
 from schemas import (
     AirQualityData, 
@@ -39,6 +39,9 @@ class UnifiedWeatherService:
     def __init__(self):
         self.air_quality_service = AirQualityService()
         self.cache_manager = MultiLevelCacheManager()
+        self._current_persistence_callback: Optional[
+            Callable[[float, float, AirQualityData], Awaitable[None]]
+        ] = None
         
         # Cache TTL for combined data (shorter than individual components)
         self.combined_cache_ttl = 600  # 10 minutes
@@ -60,6 +63,12 @@ class UnifiedWeatherService:
             logger.warning(f"Combined cache key privacy validation failed for key: {cache_key[:20]}...")
         
         return cache_key
+
+    def set_current_persistence_callback(
+        self,
+        callback: Optional[Callable[[float, float, AirQualityData], Awaitable[None]]],
+    ) -> None:
+        self._current_persistence_callback = callback
     
     async def get_current_combined_data(self, lat: float, lon: float) -> AirQualityData:
         """
@@ -118,6 +127,12 @@ class UnifiedWeatherService:
             self.requests_with_weather += 1
         else:
             self.requests_fallback_only += 1
+
+        if self._current_persistence_callback is not None:
+            try:
+                await self._current_persistence_callback(lat, lon, combined_data)
+            except Exception as e:
+                logger.warning(f"Current data persistence callback failed: {e}")
         
         return combined_data
     

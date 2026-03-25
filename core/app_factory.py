@@ -18,18 +18,29 @@ from api.ops import router as ops_router
 from api.v1.readonly import router as v1_readonly_router
 from api.v2.readonly import router as v2_readonly_router
 from config import config
+from core.settings import get_cities_mapping, load_cities_config
 from core.legacy_runtime import (
     get_air_quality_service,
     set_air_quality_service,
     set_history_ingestion_pipeline,
     set_history_snapshot_store,
 )
-from core.settings import load_cities_config
 from graceful_degradation import get_graceful_degradation_manager
+from infrastructure.db import close_database_runtime, initialize_database_runtime, run_database_migrations
+from infrastructure.repositories import (
+    SQLAlchemyAggregationRepository,
+    SQLAlchemyHistoryRepository,
+    SQLAlchemyLocationRepository,
+)
 from history_ingestion import (
     HistoryIngestionPipeline,
     InMemoryHistoricalSnapshotStore,
     JsonlDeadLetterSink,
+)
+from application.services.history_storage import (
+    HistoryPersistenceService,
+    RepositoryBackedHistoricalSnapshotStore,
+    build_canonical_locations_from_mapping,
 )
 from middleware import PrivacyMiddleware, set_privacy_middleware, setup_privacy_logging
 from rate_limit_middleware import setup_rate_limiting
@@ -114,14 +125,53 @@ async def lifespan(app: FastAPI):
     if config.weather_api.enabled:
         await degradation_manager.register_component("weather_api", lambda: unified_weather_service.check_weather_api_health())
 
-    history_store = InMemoryHistoricalSnapshotStore()
+    cities_mapping = get_cities_mapping()
+    canonical_locations = build_canonical_locations_from_mapping(cities_mapping)
+    history_store: Any
+    history_ingestion_kwargs: dict[str, Any] = {}
+    if config.database.enabled:
+        if config.database.run_migrations_on_startup:
+            run_database_migrations(config.database.alembic_url or config.database.url)
+        runtime = initialize_database_runtime(config.database)
+        location_repository = SQLAlchemyLocationRepository(runtime.session_factory)
+        history_repository = SQLAlchemyHistoryRepository(runtime.session_factory)
+        aggregation_repository = SQLAlchemyAggregationRepository(runtime.session_factory)
+        persistence_service = HistoryPersistenceService(
+            location_repository=location_repository,
+            history_repository=history_repository,
+        )
+        await persistence_service.bootstrap_configured_locations(cities_mapping)
+        history_store = RepositoryBackedHistoricalSnapshotStore(
+            history_repository=history_repository,
+            persistence_service=persistence_service,
+        )
+        history_ingestion_kwargs["persistence_service"] = persistence_service
+
+        async def _persist_current_observation(lat: float, lon: float, data: Any) -> None:
+            await persistence_service.persist_current_observation(
+                lat=lat,
+                lon=lon,
+                data=data,
+            )
+
+        unified_weather_service.set_current_persistence_callback(_persist_current_observation)
+        logger.info(
+            "DB-backed history storage enabled (timescaledb=%s)",
+            config.database.timescaledb_enabled,
+        )
+    else:
+        history_store = InMemoryHistoricalSnapshotStore()
+        unified_weather_service.set_current_persistence_callback(None)
+
     set_history_snapshot_store(history_store)
     history_ingestion_pipeline = HistoryIngestionPipeline(
         fetch_current_data=unified_weather_service.get_current_combined_data,
         snapshot_store=history_store,
         dead_letter_sink=JsonlDeadLetterSink("logs/history_dead_letter.jsonl"),
+        canonical_locations=canonical_locations,
         max_retries=int(os.getenv("HISTORY_INGEST_MAX_RETRIES", "3")),
         retry_delay_seconds=float(os.getenv("HISTORY_INGEST_RETRY_DELAY_SECONDS", "0.5")),
+        **history_ingestion_kwargs,
     )
     set_history_ingestion_pipeline(history_ingestion_pipeline)
 
@@ -152,6 +202,8 @@ async def lifespan(app: FastAPI):
             await unified_weather_service.cleanup()
         except Exception as exc:
             logger.warning("Unified weather service cleanup failed: %s", exc)
+        finally:
+            unified_weather_service.set_current_persistence_callback(None)
 
         air_quality_service = get_air_quality_service()
         if air_quality_service is not None:
@@ -176,6 +228,7 @@ async def lifespan(app: FastAPI):
         set_air_quality_service(None)
         set_history_ingestion_pipeline(None)
         set_history_snapshot_store(None)
+        await close_database_runtime()
         logger.info("Shutdown complete")
 
 
