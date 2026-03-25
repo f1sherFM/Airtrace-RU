@@ -16,6 +16,7 @@ from schemas import (
     AirQualityData,
     DataSource,
     HistoricalSnapshotRecord,
+    HistorySortOrder,
     PollutantData,
     ResponseMetadata,
 )
@@ -45,6 +46,7 @@ class HistoricalSnapshotStoreProtocol(Protocol):
         lon: Optional[float] = None,
         limit: int = 100,
         offset: int = 0,
+        sort: HistorySortOrder = HistorySortOrder.DESC,
     ) -> Dict[str, Any]: ...
 
 
@@ -74,6 +76,7 @@ class InMemoryHistoricalSnapshotStore:
         lon: Optional[float] = None,
         limit: int = 100,
         offset: int = 0,
+        sort: HistorySortOrder = HistorySortOrder.DESC,
     ) -> Dict[str, Any]:
         items: List[HistoricalSnapshotRecord] = []
         normalized_city = city_code.lower() if city_code else None
@@ -93,7 +96,10 @@ class InMemoryHistoricalSnapshotStore:
             items.append(record.model_copy(deep=True))
 
         total = len(items)
-        paged = apply_anomaly_metadata(items)[offset : offset + limit]
+        ordered = apply_anomaly_metadata(items)
+        if sort == HistorySortOrder.ASC:
+            ordered = list(reversed(ordered))
+        paged = ordered[offset : offset + limit]
         return {"total": total, "items": paged}
 
 

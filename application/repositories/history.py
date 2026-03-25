@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Protocol
 
-from schemas import DailyAggregateRecord, HistoricalSnapshotRecord
+from schemas import DailyAggregateRecord, HistoricalSnapshotRecord, HistorySortOrder
 
 
 @dataclass(frozen=True)
@@ -64,6 +64,7 @@ class HistoryRepository(Protocol):
         lon: Optional[float] = None,
         limit: int = 100,
         offset: int = 0,
+        sort: HistorySortOrder = HistorySortOrder.DESC,
     ) -> dict[str, object]: ...
 
     async def count_snapshots(self) -> int: ...

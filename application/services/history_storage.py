@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 from anomaly_detection import HourlyAnomalyDetector
 from application.repositories.history import HistoryRepository, LocationRepository, LocationRecord
 from config import config
-from schemas import AirQualityData, DataSource, HistoricalSnapshotRecord, PollutantData, ResponseMetadata
+from schemas import AirQualityData, DataSource, HistoricalSnapshotRecord, HistorySortOrder, PollutantData, ResponseMetadata
 
 
 def build_snapshot_dedupe_key(
@@ -203,6 +203,7 @@ class RepositoryBackedHistoricalSnapshotStore:
         lon: Optional[float] = None,
         limit: int = 100,
         offset: int = 0,
+        sort: HistorySortOrder = HistorySortOrder.DESC,
     ) -> Dict[str, Any]:
         result = await self._history_repository.query_snapshots(
             start_utc=start_utc,
@@ -212,6 +213,9 @@ class RepositoryBackedHistoricalSnapshotStore:
             lon=lon,
             limit=limit,
             offset=offset,
+            sort=sort,
         )
         items = apply_anomaly_metadata(list(result["items"]))
+        if sort == HistorySortOrder.ASC:
+            items = list(reversed(items))
         return {"total": result["total"], "items": items}

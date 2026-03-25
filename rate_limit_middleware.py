@@ -39,6 +39,11 @@ class UnicodeJSONResponse(JSONResponse):
 
 logger = logging.getLogger(__name__)
 
+V2_RESPONSE_HEADERS = {
+    "X-AirTrace-API-Version": "2",
+    "X-AirTrace-API-Contract": "readonly",
+}
+
 
 def _load_trusted_proxy_networks() -> list[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]:
     """Load trusted proxy IP/CIDR list from env for safe forwarded-header parsing."""
@@ -149,6 +154,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     
     def _create_rate_limit_response(self, result: RateLimitResult, endpoint: str) -> UnicodeJSONResponse:
         """Create HTTP 429 response with rate limit information"""
+        is_v2_endpoint = endpoint.startswith("/v2/")
         error_response = ErrorResponse(
             code="RATE_LIMIT_EXCEEDED",
             message=f"Превышен лимит запросов. Попробуйте через {result.retry_after} секунд."
@@ -160,6 +166,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         headers["X-RateLimit-Endpoint"] = endpoint
         headers["X-RateLimit-Policy"] = "sliding-window"
         headers["Content-Type"] = "application/json; charset=utf-8"
+        if is_v2_endpoint:
+            headers.update(V2_RESPONSE_HEADERS)
         
         logger.warning(
             f"Rate limit exceeded - Endpoint: {endpoint}, "
@@ -252,10 +260,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         return True, 0
     
-    def _create_ip_rate_limit_response(self, client_ip: str, retry_after: int) -> UnicodeJSONResponse:
+    def _create_ip_rate_limit_response(self, client_ip: str, retry_after: int, endpoint: str) -> UnicodeJSONResponse:
         """Create HTTP 429 response for IP rate limit"""
+        is_v2_endpoint = endpoint.startswith("/v2/")
         error_response = ErrorResponse(
-            code="IP_RATE_LIMIT_EXCEEDED",
+            code="RATE_LIMIT_EXCEEDED" if is_v2_endpoint else "IP_RATE_LIMIT_EXCEEDED",
             message=f"Превышен лимит запросов с вашего IP. Попробуйте через {retry_after} секунд."
         )
         
@@ -266,6 +275,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             "X-RateLimit-Window": "60",
             "Content-Type": "application/json; charset=utf-8"
         }
+        if is_v2_endpoint:
+            headers.update(V2_RESPONSE_HEADERS)
         
         logger.warning(
             f"IP rate limit exceeded - IP: {client_ip[:10]}..., "
@@ -299,7 +310,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self.total_requests += 1
             self.blocked_requests += 1
             self.ip_blocked_requests += 1
-            return self._create_ip_rate_limit_response(client_ip, ip_retry_after)
+            return self._create_ip_rate_limit_response(client_ip, ip_retry_after, endpoint)
         
         # Use custom identifier if provided
         if self.custom_identifier:

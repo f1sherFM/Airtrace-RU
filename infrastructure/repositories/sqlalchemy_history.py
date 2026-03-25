@@ -26,6 +26,7 @@ from schemas import (
     DataSource,
     HistoricalSnapshotRecord,
     HistoryFreshness,
+    HistorySortOrder,
     PollutantData,
     ResponseMetadata,
 )
@@ -220,6 +221,7 @@ class SQLAlchemyHistoryRepository(_SQLAlchemyRepositoryBase, HistoryRepository):
         lon: Optional[float] = None,
         limit: int = 100,
         offset: int = 0,
+        sort: HistorySortOrder = HistorySortOrder.DESC,
     ) -> dict[str, object]:
         async with self._session() as session:
             filters = [
@@ -248,9 +250,12 @@ class SQLAlchemyHistoryRepository(_SQLAlchemyRepositoryBase, HistoryRepository):
             )
             total = int(total_result.scalar_one() or 0)
 
-            rows = await session.execute(
-                statement.order_by(AirQualitySnapshotModel.snapshot_hour_utc.desc()).offset(offset).limit(limit)
+            order_column = (
+                AirQualitySnapshotModel.snapshot_hour_utc.asc()
+                if sort == HistorySortOrder.ASC
+                else AirQualitySnapshotModel.snapshot_hour_utc.desc()
             )
+            rows = await session.execute(statement.order_by(order_column).offset(offset).limit(limit))
             items = [_record_from_models(model, model.provenance) for model in rows.scalars().all()]
             return {"total": total, "items": items}
 

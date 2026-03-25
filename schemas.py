@@ -364,7 +364,7 @@ class ErrorResponse(BaseModel):
     
     code: str = Field(..., description="Код ошибки")
     message: str = Field(..., description="Сообщение об ошибке")
-    details: Optional[Dict[str, Any]] = Field(
+    details: Optional[Any] = Field(
         None, 
         description="Дополнительные детали ошибки"
     )
@@ -698,3 +698,61 @@ class DailyDigestResponse(BaseModel):
     top_warnings: List[str] = Field(default_factory=list)
     recommended_actions: List[str] = Field(default_factory=list)
     summary_text: str
+
+
+class HistorySortOrder(str, Enum):
+    """Sort order for historical records."""
+
+    ASC = "asc"
+    DESC = "desc"
+
+
+class TrendRange(str, Enum):
+    """Supported ranges for trends endpoint."""
+
+    LAST_7D = "7d"
+    LAST_30D = "30d"
+
+
+class TrendDirection(str, Enum):
+    """Direction of change for aggregated AQI trends."""
+
+    IMPROVING = "improving"
+    STABLE = "stable"
+    WORSENING = "worsening"
+    INSUFFICIENT_DATA = "insufficient_data"
+
+
+class TrendLocation(BaseModel):
+    """Location descriptor used by trend responses."""
+
+    city_code: Optional[str] = None
+    latitude: float
+    longitude: float
+
+
+class TrendPoint(BaseModel):
+    """Single aggregated trend data point."""
+
+    timestamp: datetime = Field(description="UTC start of the aggregation bucket")
+    aqi_min: int = Field(..., ge=0, le=500)
+    aqi_max: int = Field(..., ge=0, le=500)
+    aqi_avg: float = Field(..., ge=0, le=500)
+    sample_count: int = Field(..., ge=0)
+    avg_confidence: float = Field(..., ge=0.0, le=1.0)
+    dominant_source: str = Field(..., description="Dominant provenance source for the bucket")
+
+    @field_serializer("timestamp")
+    def serialize_timestamp(self, dt: datetime) -> str:
+        return dt.isoformat()
+
+
+class HistoryTrendResponse(BaseModel):
+    """Stable read-only trend response for the public v2 API."""
+
+    range: TrendRange
+    location: TrendLocation
+    aggregation: str = Field(default="day")
+    trend: TrendDirection
+    summary: str
+    points: List[TrendPoint] = Field(default_factory=list)

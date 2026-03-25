@@ -10,8 +10,10 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.legacy import router as legacy_router
 from api.ops import router as ops_router
@@ -50,6 +52,11 @@ from unified_weather_service import unified_weather_service
 
 setup_privacy_logging()
 logger = logging.getLogger(__name__)
+
+V2_RESPONSE_HEADERS = {
+    "X-AirTrace-API-Version": "2",
+    "X-AirTrace-API-Contract": "readonly",
+}
 
 
 class UnicodeJSONResponse(JSONResponse):
@@ -235,17 +242,66 @@ async def lifespan(app: FastAPI):
 def _register_exception_handlers(app: FastAPI) -> None:
     from schemas import ErrorResponse
 
-    @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):
+    def _is_v2_request(request: Request) -> bool:
+        return request.url.path.startswith("/v2/")
+
+    def _status_to_v2_code(status_code: int) -> str:
+        if status_code == 400:
+            return "VALIDATION_ERROR"
+        if status_code == 404:
+            return "NOT_FOUND"
+        if status_code == 429:
+            return "RATE_LIMIT_EXCEEDED"
+        if status_code == 503:
+            return "SERVICE_UNAVAILABLE"
+        if 400 <= status_code < 500:
+            return "VALIDATION_ERROR"
+        return "INTERNAL_ERROR"
+
+    def _build_v2_error_response(*, status_code: int, code: str, message: str, details: Any = None) -> UnicodeJSONResponse:
+        payload = ErrorResponse(code=code, message=message, details=details)
+        return UnicodeJSONResponse(
+            status_code=status_code,
+            content=payload.model_dump(mode="json"),
+            headers=dict(V2_RESPONSE_HEADERS),
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         logger.warning("HTTP exception: %s - %s", exc.status_code, exc.detail)
+        if _is_v2_request(request):
+            return _build_v2_error_response(
+                status_code=exc.status_code,
+                code=_status_to_v2_code(exc.status_code),
+                message=exc.detail if isinstance(exc.detail, str) else "Request failed",
+                details=None if isinstance(exc.detail, str) else exc.detail,
+            )
         error_response = ErrorResponse(code=f"HTTP_{exc.status_code}", message=exc.detail)
-        return JSONResponse(status_code=exc.status_code, content=error_response.model_dump(mode="json"))
+        return UnicodeJSONResponse(status_code=exc.status_code, content=error_response.model_dump(mode="json"))
+
+    @app.exception_handler(RequestValidationError)
+    async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
+        logger.warning("Validation exception: %s", exc.errors())
+        if _is_v2_request(request):
+            return _build_v2_error_response(
+                status_code=422,
+                code="VALIDATION_ERROR",
+                message="Request validation failed",
+                details=exc.errors(),
+            )
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
         logger.error("Unhandled exception: %s: %s", type(exc).__name__, exc)
+        if _is_v2_request(request):
+            return _build_v2_error_response(
+                status_code=500,
+                code="INTERNAL_ERROR",
+                message="Internal server error",
+            )
         error_response = ErrorResponse(code="INTERNAL_ERROR", message="Внутренняя ошибка сервера")
-        return JSONResponse(status_code=500, content=error_response.model_dump(mode="json"))
+        return UnicodeJSONResponse(status_code=500, content=error_response.model_dump(mode="json"))
 
 
 def create_api_app() -> FastAPI:
@@ -267,6 +323,9 @@ def create_api_app() -> FastAPI:
         content_type = response.headers.get("content-type", "")
         if "application/json" in content_type and "charset" not in content_type:
             response.headers["content-type"] = "application/json; charset=utf-8"
+        if request.url.path.startswith("/v2/"):
+            for header, value in V2_RESPONSE_HEADERS.items():
+                response.headers.setdefault(header, value)
         return response
 
     app.add_middleware(

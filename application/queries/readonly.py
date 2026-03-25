@@ -19,7 +19,7 @@ from core.legacy_runtime import (
 )
 from graceful_degradation import get_graceful_degradation_manager
 from history_ingestion import InMemoryHistoricalSnapshotStore
-from schemas import AirQualityData, HistoryQueryResponse, HistoryRange
+from schemas import AirQualityData, HistoryQueryResponse, HistoryRange, HistorySortOrder
 from services import AirQualityService
 from unified_weather_service import unified_weather_service
 from utils import validate_coordinates
@@ -213,6 +213,7 @@ async def query_history(
     range_value: HistoryRange,
     page: int,
     page_size: int,
+    sort: HistorySortOrder = HistorySortOrder.DESC,
     city: Optional[str],
     lat: Optional[float],
     lon: Optional[float],
@@ -235,6 +236,7 @@ async def query_history(
         lon=lon,
         limit=page_size,
         offset=offset,
+        sort=sort,
     )
     return HistoryQueryResponse(
         range=range_value,
