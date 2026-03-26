@@ -22,6 +22,8 @@ class EndpointCategory(Enum):
     """Endpoint categories with different rate limits"""
     AIR_QUALITY = "air_quality"
     BATCH_REQUESTS = "batch"
+    ALERTS_READ = "alerts-read"
+    ALERTS_WRITE = "alerts-write"
     HEALTH_CHECKS = "health"
     METRICS = "metrics"
     DEFAULT = "default"

@@ -91,6 +91,18 @@ class RateLimiter:
                 window_size_seconds=60,
                 identifier_strategy=RateLimitStrategy.COMBINED
             ),
+            EndpointCategory.ALERTS_READ: RateLimitConfig(
+                requests_per_minute=30,
+                burst_multiplier=1.3,
+                window_size_seconds=60,
+                identifier_strategy=RateLimitStrategy.COMBINED
+            ),
+            EndpointCategory.ALERTS_WRITE: RateLimitConfig(
+                requests_per_minute=10,
+                burst_multiplier=1.0,
+                window_size_seconds=60,
+                identifier_strategy=RateLimitStrategy.COMBINED
+            ),
             EndpointCategory.HEALTH_CHECKS: RateLimitConfig(
                 requests_per_minute=1000,
                 burst_multiplier=2.0,
@@ -429,8 +441,13 @@ class RateLimiter:
         
         return summary
     
-    def get_endpoint_category(self, endpoint_path: str) -> EndpointCategory:
+    def get_endpoint_category(self, endpoint_path: str, method: Optional[str] = None) -> EndpointCategory:
         """Determine endpoint category from path"""
+        normalized_method = (method or "GET").upper()
+        if endpoint_path == "/v2/alerts" or endpoint_path.startswith("/v2/alerts/"):
+            if normalized_method == "GET":
+                return EndpointCategory.ALERTS_READ
+            return EndpointCategory.ALERTS_WRITE
         if "/weather/" in endpoint_path:
             return EndpointCategory.AIR_QUALITY
         elif "/health" in endpoint_path:
@@ -442,7 +459,13 @@ class RateLimiter:
         else:
             return EndpointCategory.DEFAULT
     
-    async def check_rate_limit(self, ip: str, endpoint: str, user_agent: Optional[str] = None) -> RateLimitResult:
+    async def check_rate_limit(
+        self,
+        ip: str,
+        endpoint: str,
+        user_agent: Optional[str] = None,
+        method: Optional[str] = None,
+    ) -> RateLimitResult:
         """
         Check if request is within rate limits.
         
@@ -455,7 +478,7 @@ class RateLimiter:
             RateLimitResult with allow/deny decision and metadata
         """
         # Get endpoint category and configuration
-        category = self.get_endpoint_category(endpoint)
+        category = self.get_endpoint_category(endpoint, method)
         config = self._endpoint_configs.get(category, self._endpoint_configs[EndpointCategory.DEFAULT])
         
         # Generate identifier based on strategy
@@ -467,9 +490,15 @@ class RateLimiter:
         else:
             return await self._check_rate_limit_memory(identifier, category.value, config)
     
-    async def get_rate_limit_info(self, ip: str, endpoint: str, user_agent: Optional[str] = None) -> RateLimitInfo:
+    async def get_rate_limit_info(
+        self,
+        ip: str,
+        endpoint: str,
+        user_agent: Optional[str] = None,
+        method: Optional[str] = None,
+    ) -> RateLimitInfo:
         """Get current rate limit information for an identifier"""
-        category = self.get_endpoint_category(endpoint)
+        category = self.get_endpoint_category(endpoint, method)
         config = self._endpoint_configs.get(category, self._endpoint_configs[EndpointCategory.DEFAULT])
         identifier = self._generate_identifier(ip, user_agent, config.identifier_strategy)
         

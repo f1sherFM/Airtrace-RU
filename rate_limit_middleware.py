@@ -152,7 +152,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Extract user agent from request"""
         return request.headers.get("User-Agent")
     
-    def _create_rate_limit_response(self, result: RateLimitResult, endpoint: str) -> UnicodeJSONResponse:
+    def _create_rate_limit_response(self, result: RateLimitResult, endpoint: str, policy_name: str) -> UnicodeJSONResponse:
         """Create HTTP 429 response with rate limit information"""
         is_v2_endpoint = endpoint.startswith("/v2/")
         error_response = ErrorResponse(
@@ -164,7 +164,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         # Add additional context headers
         headers["X-RateLimit-Endpoint"] = endpoint
-        headers["X-RateLimit-Policy"] = "sliding-window"
+        headers["X-RateLimit-Policy"] = policy_name
         headers["Content-Type"] = "application/json; charset=utf-8"
         if is_v2_endpoint:
             headers.update(V2_RESPONSE_HEADERS)
@@ -172,7 +172,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         logger.warning(
             f"Rate limit exceeded - Endpoint: {endpoint}, "
             f"Usage: {result.current_usage}/{result.limit}, "
-            f"Retry after: {result.retry_after}s"
+            f"Retry after: {result.retry_after}s, Policy: {policy_name}"
         )
         
         return UnicodeJSONResponse(
@@ -303,6 +303,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         client_ip = self._extract_client_ip(request)
         user_agent = self._extract_user_agent(request)
         endpoint = request.url.path
+        policy_category = self.rate_limiter.get_endpoint_category(endpoint, request.method)
+        policy_name = policy_category.value
         
         # ✅ FIX #8: Check IP-based rate limit first
         ip_allowed, ip_retry_after = self._check_ip_rate_limit(client_ip)
@@ -331,7 +333,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             result = await self.rate_limiter.check_rate_limit(
                 ip=client_ip,
                 endpoint=endpoint,
-                user_agent=user_agent
+                user_agent=user_agent,
+                method=request.method,
             )
             check_duration = time.time() - start_time
             
@@ -349,7 +352,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # Block request if rate limit exceeded
             if not result.allowed:
                 self.blocked_requests += 1
-                return self._create_rate_limit_response(result, endpoint)
+                return self._create_rate_limit_response(result, endpoint, policy_name)
             
             # Process request
             response = await call_next(request)
@@ -358,6 +361,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             rate_limit_headers = result.to_headers()
             for header_name, header_value in rate_limit_headers.items():
                 response.headers[header_name] = header_value
+            response.headers["X-RateLimit-Policy"] = policy_name
+            response.headers["X-RateLimit-Endpoint"] = endpoint
             
             return response
             
@@ -461,7 +466,8 @@ class RateLimitManager:
         return await self.rate_limiter.check_rate_limit(
             ip=client_ip,
             endpoint=endpoint,
-            user_agent=user_agent
+            user_agent=user_agent,
+            method=request.method,
         )
     
     def _extract_client_ip_from_request(self, request: Request) -> str:
