@@ -3,16 +3,14 @@
 
 from __future__ import annotations
 
-import csv
 import io
-import json
 import logging
 import os
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import uvicorn
 from fastapi import FastAPI, Form, HTTPException, Query, Request
@@ -41,11 +39,19 @@ from application.web import (  # noqa: E402
     build_history_page_context,
     build_index_context,
     build_trends_page_context,
+    create_csv_export,
+    create_json_export,
+    format_time,
+    get_action_plan,
+    get_aqi_class,
+    get_nmu_config,
+    normalize_api_status,
+    prepare_export_data,
 )
-from cities_data import CITIES as YAML_CITIES  # noqa: E402
+from core.settings import get_cities_mapping  # noqa: E402
 
 
-CITIES = YAML_CITIES
+CITIES = get_cities_mapping()
 air_service = WebAppService()
 
 
@@ -71,178 +77,6 @@ async def add_charset_to_html(request: Request, call_next):
     if "text/html" in content_type and "charset" not in content_type:
         response.headers["content-type"] = "text/html; charset=utf-8"
     return response
-
-
-def format_time(timestamp: str) -> str:
-    try:
-        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        return dt.strftime("%H:%M")
-    except (TypeError, ValueError, AttributeError):
-        return "--:--"
-
-
-def normalize_api_status(status: Optional[str]) -> str:
-    normalized = (status or "").strip().lower()
-    if normalized in {"healthy", "ok", "up", "enabled", "active"}:
-        return "healthy"
-    if normalized in {"unhealthy", "down", "failed", "error"}:
-        return "unhealthy"
-    return "degraded"
-
-
-def get_aqi_class(aqi: int) -> str:
-    if aqi <= 50:
-        return "aqi-good"
-    if aqi <= 100:
-        return "aqi-moderate"
-    if aqi <= 150:
-        return "aqi-unhealthy-sensitive"
-    if aqi <= 200:
-        return "aqi-unhealthy"
-    if aqi <= 300:
-        return "aqi-very-unhealthy"
-    return "aqi-hazardous"
-
-
-def get_nmu_config(risk: str) -> Dict[str, str]:
-    configs = {
-        "low": {
-            "border": "border-l-green-400",
-            "icon": "shield-check",
-            "color": "text-green-400",
-            "level": "Low Risk",
-            "description": "No black-sky conditions expected.",
-        },
-        "medium": {
-            "border": "border-l-yellow-400",
-            "icon": "shield",
-            "color": "text-yellow-400",
-            "level": "Moderate Risk",
-            "description": "Watch for changes in air quality.",
-        },
-        "high": {
-            "border": "border-l-orange-400",
-            "icon": "shield-alert",
-            "color": "text-orange-400",
-            "level": "High Risk",
-            "description": "Unfavorable dispersion conditions are possible.",
-        },
-        "critical": {
-            "border": "border-l-red-500",
-            "icon": "shield-x",
-            "color": "text-red-500",
-            "level": "Critical",
-            "description": "Black-sky conditions are active.",
-        },
-    }
-    return configs.get((risk or "low").lower(), configs["low"])
-
-
-def get_action_plan(aqi_value: int, nmu_risk: str) -> Dict[str, Any]:
-    risk = (nmu_risk or "low").lower()
-    if aqi_value >= 200 or risk == "critical":
-        risk = "critical"
-    elif aqi_value >= 150 or risk == "high":
-        risk = "high"
-    elif aqi_value >= 100 or risk == "medium":
-        risk = "medium"
-    else:
-        risk = "low"
-
-    plans = {
-        "low": {
-            "title": "What to do now: low risk",
-            "color": "green",
-            "risk_label": "low",
-            "general": [
-                "Normal outdoor activity is acceptable.",
-                "Ventilation can remain in a standard mode.",
-            ],
-            "sensitive": [
-                "If symptoms appear, reduce walking time outdoors.",
-                "Keep baseline medication nearby if you have chronic conditions.",
-            ],
-        },
-        "medium": {
-            "title": "What to do now: moderate risk",
-            "color": "yellow",
-            "risk_label": "medium",
-            "general": [
-                "Reduce intense outdoor workouts.",
-                "Plan walks for hours with cleaner air.",
-            ],
-            "sensitive": [
-                "Reduce long time outdoors.",
-                "Use a mask/respirator for longer outdoor exposure.",
-            ],
-        },
-        "high": {
-            "title": "What to do now: high risk",
-            "color": "orange",
-            "risk_label": "high",
-            "general": [
-                "Avoid long or intense outdoor activity.",
-                "Keep windows closed during peak pollution periods.",
-            ],
-            "sensitive": [
-                "Stay indoors when possible.",
-                "Use an air purifier and monitor symptoms.",
-            ],
-        },
-        "critical": {
-            "title": "What to do now: critical risk",
-            "color": "red",
-            "risk_label": "critical",
-            "general": [
-                "Postpone walks and outdoor activity.",
-                "Minimize intake of outdoor air indoors.",
-            ],
-            "sensitive": [
-                "Stay indoors and go outside only if necessary.",
-                "Seek medical help if your condition worsens.",
-            ],
-        },
-    }
-    plan = plans[risk]
-    plan["immediate"] = [plan["general"][0], plan["sensitive"][0]]
-    return plan
-
-
-def prepare_export_data(time_series_data: List[Dict[str, Any]], city_name: str) -> List[Dict[str, Any]]:
-    export_data = []
-    for point in time_series_data:
-        export_data.append(
-            {
-                "timestamp": point["timestamp"],
-                "city": city_name,
-                "latitude": point["location"]["latitude"],
-                "longitude": point["location"]["longitude"],
-                "aqi_value": point["aqi"]["value"],
-                "aqi_category": point["aqi"]["category"],
-                "pm2_5": point["pollutants"]["pm2_5"],
-                "pm10": point["pollutants"]["pm10"],
-                "no2": point["pollutants"]["no2"],
-                "so2": point["pollutants"]["so2"],
-                "o3": point["pollutants"]["o3"],
-                "nmu_risk": point["nmu_risk"],
-            }
-        )
-    return export_data
-
-
-def create_csv_export(data: List[Dict[str, Any]]) -> str:
-    if not data:
-        return ""
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=data[0].keys())
-    writer.writeheader()
-    writer.writerows(data)
-    return output.getvalue()
-
-
-def create_json_export(data: List[Dict[str, Any]]) -> str:
-    return json.dumps(data, ensure_ascii=False, indent=2)
-
 
 def _render_city_error(request: Request, city: dict[str, Any], error_message: str):
     return templates.TemplateResponse(

@@ -9,7 +9,6 @@ from core.settings import (
     load_cities_config,
     parse_cities_config,
 )
-from web.cities_data import CITIES as WEB_CITIES
 
 
 @pytest.fixture(autouse=True)
@@ -33,12 +32,6 @@ def test_stage1_city_config_exposes_legacy_mapping_shape():
     assert cities["moscow"]["name"] == "Москва"
     assert cities["moscow"]["lat"] == pytest.approx(55.7558)
     assert cities["moscow"]["lon"] == pytest.approx(37.6176)
-
-
-def test_stage1_web_city_shim_uses_validated_yaml_mapping():
-    cities = get_cities_mapping()
-
-    assert WEB_CITIES == cities
 
 
 def test_stage1_city_config_rejects_invalid_coordinates(tmp_path: Path):
