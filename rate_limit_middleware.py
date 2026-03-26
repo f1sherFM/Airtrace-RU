@@ -152,9 +152,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Extract user agent from request"""
         return request.headers.get("User-Agent")
     
-    def _create_rate_limit_response(self, result: RateLimitResult, endpoint: str, policy_name: str) -> UnicodeJSONResponse:
+    def _create_rate_limit_response(
+        self,
+        result: RateLimitResult,
+        endpoint: str,
+        policy_name: Optional[str] = None,
+    ) -> UnicodeJSONResponse:
         """Create HTTP 429 response with rate limit information"""
         is_v2_endpoint = endpoint.startswith("/v2/")
+        resolved_policy_name = policy_name or self.rate_limiter.get_endpoint_category(endpoint).value
         error_response = ErrorResponse(
             code="RATE_LIMIT_EXCEEDED",
             message=f"Превышен лимит запросов. Попробуйте через {result.retry_after} секунд."
@@ -164,7 +170,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         # Add additional context headers
         headers["X-RateLimit-Endpoint"] = endpoint
-        headers["X-RateLimit-Policy"] = policy_name
+        headers["X-RateLimit-Policy"] = resolved_policy_name
         headers["Content-Type"] = "application/json; charset=utf-8"
         if is_v2_endpoint:
             headers.update(V2_RESPONSE_HEADERS)
@@ -172,7 +178,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         logger.warning(
             f"Rate limit exceeded - Endpoint: {endpoint}, "
             f"Usage: {result.current_usage}/{result.limit}, "
-            f"Retry after: {result.retry_after}s, Policy: {policy_name}"
+            f"Retry after: {result.retry_after}s, Policy: {resolved_policy_name}"
         )
         
         return UnicodeJSONResponse(
