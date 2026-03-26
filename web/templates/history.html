@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block location_display %}{{ current_city.name }} history{% endblock %}
+
+{% block content %}
+<section class="glass rounded-3xl p-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+            <h2 class="text-2xl font-semibold">History</h2>
+            <p class="text-sm opacity-75">Historical AQI observations with provenance and confidence.</p>
+        </div>
+        <div class="flex gap-2">
+            {% if is_custom %}
+            <a href="/history/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}&range=24h" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '24h' %}bg-white/25{% endif %}">24h</a>
+            <a href="/history/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}&range=7d" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '7d' %}bg-white/25{% endif %}">7d</a>
+            <a href="/history/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}&range=30d" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '30d' %}bg-white/25{% endif %}">30d</a>
+            {% else %}
+            <a href="/history/{{ city_key }}?range=24h" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '24h' %}bg-white/25{% endif %}">24h</a>
+            <a href="/history/{{ city_key }}?range=7d" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '7d' %}bg-white/25{% endif %}">7d</a>
+            <a href="/history/{{ city_key }}?range=30d" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '30d' %}bg-white/25{% endif %}">30d</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="panel rounded-2xl p-4 mb-6" data-testid="explainability-block">
+        <div class="text-sm font-semibold mb-3">Explainability</div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+            <div><span class="opacity-70">source:</span> {{ explainability.source }}</div>
+            <div><span class="opacity-70">freshness:</span> {{ explainability.freshness }}</div>
+            <div><span class="opacity-70">confidence:</span> {{ "%.2f"|format(explainability.confidence or 0) }}</div>
+        </div>
+    </div>
+
+    <div class="space-y-3">
+        {% if history_records %}
+            {% for point in history_records %}
+            <div class="panel rounded-2xl p-4">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                    <div>
+                        <div class="font-semibold">AQI {{ point.aqi }}</div>
+                        <div class="text-xs opacity-70">{{ point.timestamp }}</div>
+                    </div>
+                    <div class="text-xs opacity-75">
+                        {{ point.metadata.data_source }} / {{ point.metadata.freshness }} / confidence {{ "%.2f"|format(point.metadata.confidence or 0) }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="text-sm opacity-70">No history records available for this range.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

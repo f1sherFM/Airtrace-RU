@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block location_display %}{{ current_city.name }} trends{% endblock %}
+
+{% block content %}
+<section class="glass rounded-3xl p-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+            <h2 class="text-2xl font-semibold">Trends</h2>
+            <p class="text-sm opacity-75">Daily aggregates from the historical storage layer.</p>
+        </div>
+        <div class="flex gap-2">
+            {% if is_custom %}
+            <a href="/trends/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}&range=7d" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '7d' %}bg-white/25{% endif %}">7d</a>
+            <a href="/trends/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}&range=30d" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '30d' %}bg-white/25{% endif %}">30d</a>
+            {% else %}
+            <a href="/trends/{{ city_key }}?range=7d" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '7d' %}bg-white/25{% endif %}">7d</a>
+            <a href="/trends/{{ city_key }}?range=30d" class="btn-glass rounded-xl px-4 py-2 text-sm {% if selected_range == '30d' %}bg-white/25{% endif %}">30d</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+        <div class="xl:col-span-2 panel rounded-2xl p-5">
+            <div class="text-xs uppercase tracking-wide opacity-70 mb-2">Summary</div>
+            <div class="text-lg font-semibold mb-2">{{ trend_payload.trend if trend_payload else "insufficient_data" }}</div>
+            <p class="text-sm opacity-80">{{ trend_payload.summary if trend_payload else "No trend summary available." }}</p>
+        </div>
+        <div class="panel rounded-2xl p-5" data-testid="explainability-block">
+            <div class="text-xs uppercase tracking-wide opacity-70 mb-3">Explainability</div>
+            <div class="space-y-2 text-sm">
+                <div><span class="opacity-70">source:</span> {{ explainability.source }}</div>
+                <div><span class="opacity-70">freshness:</span> {{ explainability.freshness }}</div>
+                <div><span class="opacity-70">confidence:</span> {{ "%.2f"|format(explainability.confidence or 0) }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="space-y-3">
+        {% if trend_payload and trend_payload.points %}
+            {% for point in trend_payload.points %}
+            <div class="panel rounded-2xl p-4">
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
+                    <div><div class="opacity-60 text-xs">day</div><div>{{ point.timestamp[:10] }}</div></div>
+                    <div><div class="opacity-60 text-xs">aqi min</div><div>{{ point.aqi_min }}</div></div>
+                    <div><div class="opacity-60 text-xs">aqi max</div><div>{{ point.aqi_max }}</div></div>
+                    <div><div class="opacity-60 text-xs">aqi avg</div><div>{{ "%.1f"|format(point.aqi_avg) }}</div></div>
+                    <div><div class="opacity-60 text-xs">samples</div><div>{{ point.sample_count }}</div></div>
+                    <div><div class="opacity-60 text-xs">confidence</div><div>{{ "%.2f"|format(point.avg_confidence) }}</div></div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="text-sm opacity-70">No trend points available.</div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

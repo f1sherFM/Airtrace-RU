@@ -1,64 +1,58 @@
 {% extends "base.html" %}
 
+{% block title %}AirTrace RU{% endblock %}
+
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    
-    <!-- Welcome State -->
-    <div class="lg:col-span-3 glass rounded-3xl p-8 text-center">
-        <div>
-            <i data-lucide="wind" class="w-16 h-16 mx-auto mb-6 text-blue-200"></i>
-            <h2 class="text-2xl font-bold mb-4">Добро пожаловать в AirTrace RU</h2>
-            <p class="text-lg mb-6 opacity-90">
-                Система мониторинга качества воздуха для российских городов
-            </p>
-            <p class="text-sm opacity-70 mb-8">
-                Выберите город из списка выше, чтобы получить актуальные данные о качестве воздуха
-            </p>
-            
-            <!-- Quick City Links -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto mb-8">
-                {% for key, city in cities.items() %}
-                <a href="/city/{{ key }}" class="glass rounded-xl p-4 hover:bg-white/20 transition-colors group">
-                    <div class="text-lg font-semibold group-hover:text-blue-200 transition-colors">
-                        {{ city.name }}
-                    </div>
-                    <div class="text-xs opacity-60 mt-1">
-                        {{ "%.1f"|format(city.lat) }}°, {{ "%.1f"|format(city.lon) }}°
-                    </div>
-                </a>
-                {% endfor %}
+<section class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+    <div class="xl:col-span-3 glass rounded-3xl p-8">
+        <div class="flex flex-col lg:flex-row gap-6 lg:items-end lg:justify-between">
+            <div class="max-w-3xl">
+                <p class="text-xs uppercase tracking-[0.3em] opacity-70 mb-3">AirTrace v2 foundation</p>
+                <h2 class="text-4xl md:text-5xl font-bold leading-tight mb-4">History, trends and explainability in one SSR flow.</h2>
+                <p class="text-lg opacity-85 mb-6">
+                    AirTrace now renders pages directly from the application layer: no internal web-to-api hop,
+                    one shared core for API and SSR, and safer route-by-route migration.
+                </p>
+                <div class="flex flex-wrap gap-3">
+                    <a href="/city/moscow" class="btn-glass rounded-xl px-5 py-3">Open Moscow</a>
+                    <a href="/compare?cities=moscow,spb" class="btn-glass rounded-xl px-5 py-3">Compare cities</a>
+                    <a href="/alerts/settings" class="btn-glass rounded-xl px-5 py-3">Manage alerts</a>
+                </div>
             </div>
-            
-            <!-- Кнопка произвольного города -->
-            <div class="flex justify-center">
-                <a href="/custom" class="btn-glass rounded-xl px-6 py-3 flex items-center gap-3 hover:bg-white/25 transition-all group">
-                    <i data-lucide="map-pin" class="w-5 h-5 group-hover:text-blue-200 transition-colors"></i>
-                    <span class="font-semibold">Ввести координаты города</span>
-                </a>
+            <div class="panel rounded-3xl p-5 min-w-[250px]">
+                <div class="text-xs uppercase tracking-wide opacity-70 mb-2">Backend status</div>
+                <div class="text-2xl font-semibold mb-2">{{ api_status }}</div>
+                <div class="text-sm opacity-75">Configured cities: {{ cities|length }}</div>
             </div>
         </div>
     </div>
 
-    <!-- Features -->
-    <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-        <div class="glass rounded-2xl p-6 text-center">
-            <i data-lucide="shield-check" class="w-12 h-12 mx-auto mb-4 text-green-400"></i>
-            <h3 class="text-lg font-semibold mb-2">Privacy-First</h3>
-            <p class="text-sm opacity-80">Координаты не сохраняются, полная приватность пользователей</p>
-        </div>
-        
-        <div class="glass rounded-2xl p-6 text-center">
-            <i data-lucide="flag" class="w-12 h-12 mx-auto mb-4 text-red-400"></i>
-            <h3 class="text-lg font-semibold mb-2">Российские ПДК</h3>
-            <p class="text-sm opacity-80">Расчет AQI по российским нормативам и стандартам</p>
-        </div>
-        
-        <div class="glass rounded-2xl p-6 text-center">
-            <i data-lucide="cloud-lightning" class="w-12 h-12 mx-auto mb-4 text-purple-400"></i>
-            <h3 class="text-lg font-semibold mb-2">НМУ Мониторинг</h3>
-            <p class="text-sm opacity-80">Определение рисков "Черного неба" и неблагоприятных условий</p>
-        </div>
+    <div class="panel rounded-3xl p-6">
+        <h3 class="text-lg font-semibold mb-4">What is in v2</h3>
+        <ul class="space-y-3 text-sm opacity-85">
+            <li>Stable historical storage with 24h / 7d / 30d ranges</li>
+            <li>Trend direction and provenance-aware summaries</li>
+            <li>Explainability blocks on SSR pages</li>
+            <li>Persistent alert subscriptions with Telegram delivery</li>
+        </ul>
     </div>
+</section>
 
-</div>
+<section class="mt-8 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+    {% for key, city in cities.items() %}
+    <a href="/city/{{ key }}" class="glass rounded-3xl p-5 hover:bg-white/20 transition-colors">
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <div class="text-xl font-semibold">{{ city.name }}</div>
+                <div class="text-xs opacity-70 mt-1">{{ "%.2f"|format(city.lat) }}, {{ "%.2f"|format(city.lon) }}</div>
+            </div>
+            <i data-lucide="arrow-up-right" class="w-5 h-5 opacity-75"></i>
+        </div>
+    </a>
+    {% endfor %}
+    <a href="/custom" class="glass rounded-3xl p-5 hover:bg-white/20 transition-colors border border-dashed border-white/25">
+        <div class="text-xl font-semibold">Custom coordinates</div>
+        <div class="text-sm opacity-75 mt-2">Open any location directly by latitude and longitude.</div>
+    </a>
+</section>
 {% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block location_display %}Compare cities{% endblock %}
+
+{% block content %}
+<section class="glass rounded-3xl p-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div>
+            <h2 class="text-2xl font-semibold">Compare cities</h2>
+            <p class="text-sm opacity-75">Compare up to three cities by current AQI, trend and confidence.</p>
+        </div>
+        <form method="get" action="/compare" class="flex flex-col md:flex-row gap-2">
+            <input type="text" name="cities" value="{{ selected_cities | join(',') }}" class="px-3 py-2 rounded-xl bg-white/10 border border-white/20 min-w-[260px]" placeholder="moscow,spb,surgut">
+            <button type="submit" class="btn-glass rounded-xl px-4 py-2">Update</button>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        {% for card in compare_cards %}
+        <article class="panel rounded-3xl p-5">
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <div>
+                    <h3 class="text-xl font-semibold">{{ card.city.name }}</h3>
+                    <div class="text-xs opacity-70">{{ card.city_key }}</div>
+                </div>
+                <a href="/city/{{ card.city_key }}" class="btn-glass rounded-xl px-3 py-2 text-sm">Open</a>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div class="glass rounded-2xl p-4">
+                    <div class="text-xs opacity-70 mb-1">AQI now</div>
+                    <div class="text-3xl font-bold">{{ card.current.aqi.value }}</div>
+                    <div class="text-sm opacity-80">{{ card.current.aqi.category }}</div>
+                </div>
+                <div class="glass rounded-2xl p-4">
+                    <div class="text-xs opacity-70 mb-1">Trend</div>
+                    <div class="text-xl font-semibold">{{ card.trend_payload.trend if card.trend_payload else "insufficient_data" }}</div>
+                    <div class="text-xs opacity-75 mt-2">{{ card.trend_payload.summary if card.trend_payload else "No summary" }}</div>
+                </div>
+            </div>
+            <div class="space-y-2 text-sm" data-testid="explainability-block">
+                <div class="flex justify-between gap-3"><span class="opacity-70">source</span><span>{{ card.explainability.source }}</span></div>
+                <div class="flex justify-between gap-3"><span class="opacity-70">freshness</span><span>{{ card.explainability.freshness }}</span></div>
+                <div class="flex justify-between gap-3"><span class="opacity-70">confidence</span><span>{{ "%.2f"|format(card.explainability.confidence or 0) }}</span></div>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
