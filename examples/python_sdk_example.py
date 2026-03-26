@@ -7,7 +7,8 @@ def main() -> None:
         current = client.get_current(lat=55.7558, lon=37.6176)
         history = client.get_history_by_city(city="moscow", sort="desc")
         trends = client.get_trends_by_city(city="moscow", range="7d")
-        print({"health": health, "current": current, "history_total": history.get("total"), "trends": trends.get("trend")})
+        alerts = client.list_alerts()
+        print({"health": health, "current": current, "history_total": history.get("total"), "trends": trends.get("trend"), "alerts": len(alerts)})
 
 
 if __name__ == "__main__":

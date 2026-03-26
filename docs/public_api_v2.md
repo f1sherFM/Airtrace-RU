@@ -1,6 +1,6 @@
 # Public API v2 Guide
 
-Stable read-only integration guide for AirTrace RU API v2.
+Stable public integration guide for AirTrace RU API v2.
 
 Source of truth:
 - `openapi/airtrace-v2.openapi.json`
@@ -28,6 +28,16 @@ curl -fsS "http://localhost:8000/v2/health"
 - `/v2/history`
 - `/v2/trends`
 - `/v2/health`
+
+## Protected write/read alert endpoints
+
+- `POST /v2/alerts`
+- `GET /v2/alerts`
+- `GET /v2/alerts/{id}`
+- `PATCH /v2/alerts/{id}`
+- `DELETE /v2/alerts/{id}`
+
+All `/v2/alerts*` routes require the shared alerts API key via `X-API-Key` or `Authorization: Bearer ...`.
 
 ## Current air quality
 
@@ -75,6 +85,33 @@ By custom coordinates:
 curl -fsS "http://localhost:8000/v2/trends?range=30d&lat=55.7558&lon=37.6176"
 ```
 
+## Alert subscriptions
+
+Create a Telegram subscription:
+
+```bash
+curl -fsS -X POST "http://localhost:8000/v2/alerts" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${ALERTS_API_KEY}" \
+  -H "Idempotency-Key: create-moscow-alert-1" \
+  -d '{
+    "name": "Moscow AQI >= 140",
+    "city": "moscow",
+    "aqi_threshold": 140,
+    "nmu_levels": ["high", "critical"],
+    "cooldown_minutes": 30,
+    "channel": "telegram",
+    "chat_id": "123456"
+  }'
+```
+
+List subscriptions:
+
+```bash
+curl -fsS "http://localhost:8000/v2/alerts" \
+  -H "X-API-Key: ${ALERTS_API_KEY}"
+```
+
 ## Canonical provenance metadata
 
 For `current`, `forecast`, and history items, `metadata` is the canonical provenance block:
@@ -109,9 +146,9 @@ Stable codes in Stage 3:
 - `NOT_FOUND`
 - `INTERNAL_ERROR`
 
-## Readonly scope
+## Scope
 
-Stage 3 is read-only. Alerts and other write-paths are intentionally deferred to Stage 4.
+Stage 4 keeps the air-quality surface readonly, but adds protected alert subscription write-paths under `/v2/alerts*`.
 
 ## Migration notes (v1 -> v2)
 
@@ -121,6 +158,7 @@ Stage 3 is read-only. Alerts and other write-paths are intentionally deferred to
 - `v2` no longer aims for byte-for-byte equality with `v1`; it is the stable public contract.
 - `history` adds `sort=asc|desc` in `v2`.
 - `trends` is new in `v2`.
+- alerts move from legacy `/alerts/rules*` to `/v2/alerts*`.
 
 ## Route mapping
 
@@ -128,9 +166,10 @@ Stage 3 is read-only. Alerts and other write-paths are intentionally deferred to
 - `/weather/forecast` -> `/v2/forecast`
 - `/history` -> `/v2/history`
 - `/health` -> `/v2/health`
+- `/alerts/rules` -> `/v2/alerts`
 
 ## Deferred items
 
 - Sparse fieldsets via `fields=...`
-- Alert write APIs
 - External SDK publication
+- Additional alert channels and per-client ownership

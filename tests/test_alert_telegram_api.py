@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 import main
-from schemas import AQIInfo, AirQualityData, AlertRuleCreate, LocationInfo, PollutantData
+from schemas import AQIInfo, AirQualityData, LocationInfo, PollutantData
 
 
 def _sample_air_quality(aqi_value: int = 170, nmu_risk: str = "high") -> AirQualityData:
@@ -63,11 +63,15 @@ async def test_telegram_send_endpoint_rejects_missing_api_key():
 
 @pytest.mark.asyncio
 async def test_check_current_and_deliver_sends_unsuppressed_alerts():
-    rule = main.alert_rule_engine.create_rule(
-        AlertRuleCreate(name="AQI>=150", aqi_threshold=150, cooldown_minutes=30, nmu_levels=[])
-    )
     transport = httpx.ASGITransport(app=main.app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        create_resp = await client.post(
+            "/alerts/rules",
+            json={"name": "AQI>=150", "aqi_threshold": 150, "cooldown_minutes": 30, "nmu_levels": []},
+        )
+        assert create_resp.status_code == 200
+        rule_id = create_resp.json()["id"]
+
         with patch.dict("os.environ", {"ALERTS_API_KEY": "test-alert-key"}, clear=False), patch.object(
             main.unified_weather_service,
             "get_current_combined_data",
@@ -86,16 +90,26 @@ async def test_check_current_and_deliver_sends_unsuppressed_alerts():
             assert len(items) >= 1
             assert any(item["status"] == "sent" for item in items)
 
-    main.alert_rule_engine.delete_rule(rule.id)
+        _ = await client.delete(f"/alerts/rules/{rule_id}")
 
 
 @pytest.mark.asyncio
 async def test_check_current_and_deliver_uses_rule_chat_subscription():
-    rule = main.alert_rule_engine.create_rule(
-        AlertRuleCreate(name="AQI>=150 subscribed", aqi_threshold=150, cooldown_minutes=30, nmu_levels=[], chat_id="777")
-    )
     transport = httpx.ASGITransport(app=main.app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        create_resp = await client.post(
+            "/alerts/rules",
+            json={
+                "name": "AQI>=150 subscribed",
+                "aqi_threshold": 150,
+                "cooldown_minutes": 30,
+                "nmu_levels": [],
+                "chat_id": "777",
+            },
+        )
+        assert create_resp.status_code == 200
+        rule_id = create_resp.json()["id"]
+
         with patch.dict("os.environ", {"ALERTS_API_KEY": "test-alert-key"}, clear=False), patch.object(
             main.unified_weather_service,
             "get_current_combined_data",
@@ -113,7 +127,7 @@ async def test_check_current_and_deliver_uses_rule_chat_subscription():
             assert any(item["status"] == "sent" for item in resp.json())
             assert send_mock.await_args.kwargs["chat_id"] == "777"
 
-    main.alert_rule_engine.delete_rule(rule.id)
+        _ = await client.delete(f"/alerts/rules/{rule_id}")
 
 
 @pytest.mark.asyncio

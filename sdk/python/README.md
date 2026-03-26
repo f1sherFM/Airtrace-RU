@@ -21,7 +21,8 @@ with AirTraceClient(base_url="http://localhost:8000", retries=2) as client:
     current = client.get_current(lat=55.7558, lon=37.6176)
     history = client.get_history_by_city(city="moscow", sort="desc")
     trends = client.get_trends_by_city(city="moscow", range="7d")
-    print(health["status"], current.get("aqi", {}), len(history.get("items", [])), trends.get("trend"))
+    alerts = client.list_alerts()
+    print(health["status"], current.get("aqi", {}), len(history.get("items", [])), trends.get("trend"), len(alerts))
 ```
 
 ## Supported endpoints
@@ -31,3 +32,4 @@ with AirTraceClient(base_url="http://localhost:8000", retries=2) as client:
 - `/v2/forecast`
 - `/v2/history`
 - `/v2/trends`
+- `/v2/alerts`

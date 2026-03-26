@@ -34,7 +34,15 @@ def _write_json(path: Path, payload: dict) -> None:
 
 
 def _ensure_supported_paths(spec: dict) -> None:
-    required = {"/v2/current", "/v2/forecast", "/v2/history", "/v2/trends", "/v2/health"}
+    required = {
+        "/v2/current",
+        "/v2/forecast",
+        "/v2/history",
+        "/v2/trends",
+        "/v2/health",
+        "/v2/alerts",
+        "/v2/alerts/{subscription_id}",
+    }
     available = set(spec.get("paths", {}).keys())
     missing = sorted(required - available)
     if missing:
@@ -68,12 +76,14 @@ class AirTraceClient:
         self,
         *,
         base_url: str = "http://localhost:8000",
+        api_key: Optional[str] = None,
         timeout: float = 10.0,
         retries: int = 2,
         retry_delay: float = 0.3,
         transport: Optional[httpx.BaseTransport] = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
         self.timeout = timeout
         self.retries = max(0, retries)
         self.retry_delay = max(0.0, retry_delay)
@@ -88,13 +98,25 @@ class AirTraceClient:
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
 
-    def _request(self, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    def _request(
+        self,
+        method: str,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        json_body: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Any:
         url = f"{self.base_url}{path}"
         last_exc: Optional[Exception] = None
+        headers: Dict[str, str] = {}
+        if self.api_key:
+            headers["X-API-Key"] = self.api_key
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
 
         for attempt in range(self.retries + 1):
             try:
-                response = self._client.get(url, params=params or {})
+                response = self._client.request(method, url, params=params or {}, json=json_body, headers=headers)
                 if response.status_code >= 400:
                     payload: Optional[Dict[str, Any]]
                     try:
@@ -116,13 +138,13 @@ class AirTraceClient:
         raise RuntimeError("Unexpected SDK request flow")
 
     def get_health(self) -> Any:
-        return self._request("/v2/health")
+        return self._request("GET", "/v2/health")
 
     def get_current(self, *, lat: float, lon: float) -> Any:
-        return self._request("/v2/current", {"lat": lat, "lon": lon})
+        return self._request("GET", "/v2/current", {"lat": lat, "lon": lon})
 
     def get_forecast(self, *, lat: float, lon: float, hours: int = 24) -> Any:
-        return self._request("/v2/forecast", {"lat": lat, "lon": lon, "hours": hours})
+        return self._request("GET", "/v2/forecast", {"lat": lat, "lon": lon, "hours": hours})
 
     def get_history(
         self,
@@ -146,7 +168,7 @@ class AirTraceClient:
         if lat is not None and lon is not None:
             params["lat"] = lat
             params["lon"] = lon
-        return self._request("/v2/history", params)
+        return self._request("GET", "/v2/history", params)
 
     def get_history_by_city(
         self,
@@ -166,10 +188,25 @@ class AirTraceClient:
         if lat is not None and lon is not None:
             params["lat"] = lat
             params["lon"] = lon
-        return self._request("/v2/trends", params)
+        return self._request("GET", "/v2/trends", params)
 
     def get_trends_by_city(self, *, city: str, range: str = "7d") -> Any:
         return self.get_trends(city=city, range=range)
+
+    def list_alerts(self) -> Any:
+        return self._request("GET", "/v2/alerts")
+
+    def get_alert(self, *, subscription_id: str) -> Any:
+        return self._request("GET", f"/v2/alerts/{subscription_id}")
+
+    def create_alert(self, *, payload: Dict[str, Any], idempotency_key: Optional[str] = None) -> Any:
+        return self._request("POST", "/v2/alerts", json_body=payload, idempotency_key=idempotency_key)
+
+    def update_alert(self, *, subscription_id: str, payload: Dict[str, Any], idempotency_key: Optional[str] = None) -> Any:
+        return self._request("PATCH", f"/v2/alerts/{subscription_id}", json_body=payload, idempotency_key=idempotency_key)
+
+    def delete_alert(self, *, subscription_id: str) -> Any:
+        return self._request("DELETE", f"/v2/alerts/{subscription_id}")
 '''
 
 
@@ -204,7 +241,8 @@ with AirTraceClient(base_url="http://localhost:8000", retries=2) as client:
     current = client.get_current(lat=55.7558, lon=37.6176)
     history = client.get_history_by_city(city="moscow", sort="desc")
     trends = client.get_trends_by_city(city="moscow", range="7d")
-    print(health["status"], current.get("aqi", {}), len(history.get("items", [])), trends.get("trend"))
+    alerts = client.list_alerts()
+    print(health["status"], current.get("aqi", {}), len(history.get("items", [])), trends.get("trend"), len(alerts))
 ```
 
 ## Supported endpoints
@@ -214,6 +252,7 @@ with AirTraceClient(base_url="http://localhost:8000", retries=2) as client:
 - `/v2/forecast`
 - `/v2/history`
 - `/v2/trends`
+- `/v2/alerts`
 """
 
 
@@ -225,6 +264,7 @@ def _generate_js_client() -> str:
 
 export type AirTraceClientOptions = {
   baseUrl?: string;
+  apiKey?: string;
   timeoutMs?: number;
   retries?: number;
 };
@@ -263,23 +303,40 @@ async function fetchWithTimeout(url: string, init: RequestInitWithTimeout): Prom
 
 export class AirTraceClient {
   private baseUrl: string;
+  private apiKey?: string;
   private timeoutMs: number;
   private retries: number;
 
   constructor(options: AirTraceClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? "http://localhost:8000";
+    this.apiKey = options.apiKey;
     this.timeoutMs = options.timeoutMs ?? 10_000;
     this.retries = options.retries ?? 2;
   }
 
-  private async request<T>(path: string, params: Record<string, string>): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    params: Record<string, string>,
+    body?: unknown,
+    idempotencyKey?: string,
+  ): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
 
     let lastError: unknown;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
-        const response = await fetchWithTimeout(url.toString(), { method: "GET", timeoutMs: this.timeoutMs });
+        const headers: Record<string, string> = {};
+        if (this.apiKey) headers["X-API-Key"] = this.apiKey;
+        if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+        if (body !== undefined) headers["Content-Type"] = "application/json";
+        const response = await fetchWithTimeout(url.toString(), {
+          method,
+          timeoutMs: this.timeoutMs,
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
         if (!response.ok) {
           let payload: AirTraceErrorPayload | undefined;
           try {
@@ -301,18 +358,18 @@ export class AirTraceClient {
   }
 
   getHealth(): Promise<unknown> {
-    return this.request("/v2/health", {});
+    return this.request("GET", "/v2/health", {});
   }
 
   getCurrent(coords: Coordinates): Promise<unknown> {
-    return this.request("/v2/current", {
+    return this.request("GET", "/v2/current", {
       lat: String(coords.lat),
       lon: String(coords.lon),
     });
   }
 
   getForecast(coords: Coordinates, hours = 24): Promise<unknown> {
-    return this.request("/v2/forecast", {
+    return this.request("GET", "/v2/forecast", {
       lat: String(coords.lat),
       lon: String(coords.lon),
       hours: String(hours),
@@ -339,7 +396,7 @@ export class AirTraceClient {
       params.lat = String(options.lat);
       params.lon = String(options.lon);
     }
-    return this.request("/v2/history", params);
+    return this.request("GET", "/v2/history", params);
   }
 
   getHistoryByCity(city: string, range = "24h", page = 1, pageSize = 50, sort: "asc" | "desc" = "desc"): Promise<unknown> {
@@ -355,11 +412,31 @@ export class AirTraceClient {
       params.lat = String(options.lat);
       params.lon = String(options.lon);
     }
-    return this.request("/v2/trends", params);
+    return this.request("GET", "/v2/trends", params);
   }
 
   getTrendsByCity(city: string, range = "7d"): Promise<unknown> {
     return this.getTrends({ city, range });
+  }
+
+  listAlerts(): Promise<unknown> {
+    return this.request("GET", "/v2/alerts", {});
+  }
+
+  getAlert(subscriptionId: string): Promise<unknown> {
+    return this.request("GET", `/v2/alerts/${subscriptionId}`, {});
+  }
+
+  createAlert(payload: Record<string, unknown>, idempotencyKey?: string): Promise<unknown> {
+    return this.request("POST", "/v2/alerts", {}, payload, idempotencyKey);
+  }
+
+  updateAlert(subscriptionId: string, payload: Record<string, unknown>, idempotencyKey?: string): Promise<unknown> {
+    return this.request("PATCH", `/v2/alerts/${subscriptionId}`, {}, payload, idempotencyKey);
+  }
+
+  deleteAlert(subscriptionId: string): Promise<unknown> {
+    return this.request("DELETE", `/v2/alerts/${subscriptionId}`, {});
   }
 }
 """
@@ -385,13 +462,14 @@ npm run build
 ```ts
 import { AirTraceClient } from "@airtrace-ru/sdk-js";
 
-const client = new AirTraceClient({ baseUrl: "http://localhost:8000" });
+const client = new AirTraceClient({ baseUrl: "http://localhost:8000", apiKey: "dev-key" });
 
 const health = await client.getHealth();
 const current = await client.getCurrent({ lat: 55.7558, lon: 37.6176 });
 const history = await client.getHistoryByCity("moscow", "24h", 1, 50, "desc");
 const trends = await client.getTrendsByCity("moscow", "7d");
-console.log({ health, current, history, trends });
+const alerts = await client.listAlerts();
+console.log({ health, current, history, trends, alerts });
 ```
 
 ## Supported endpoints
@@ -401,6 +479,7 @@ console.log({ health, current, history, trends });
 - `/v2/forecast`
 - `/v2/history`
 - `/v2/trends`
+- `/v2/alerts`
 """
 
 
@@ -414,7 +493,8 @@ def main() -> None:
         current = client.get_current(lat=55.7558, lon=37.6176)
         history = client.get_history_by_city(city=\"moscow\", sort=\"desc\")
         trends = client.get_trends_by_city(city=\"moscow\", range=\"7d\")
-        print({\"health\": health, \"current\": current, \"history_total\": history.get(\"total\"), \"trends\": trends.get(\"trend\")})
+        alerts = client.list_alerts()
+        print({\"health\": health, \"current\": current, \"history_total\": history.get(\"total\"), \"trends\": trends.get(\"trend\"), \"alerts\": len(alerts)})
 
 
 if __name__ == \"__main__\":
@@ -426,12 +506,13 @@ def _generate_js_example() -> str:
     return """import { AirTraceClient } from \"../sdk/js/dist/index.js\";
 
 async function main() {
-  const client = new AirTraceClient({ baseUrl: \"http://localhost:8000\", timeoutMs: 10000, retries: 2 });
+  const client = new AirTraceClient({ baseUrl: \"http://localhost:8000\", apiKey: \"dev-key\", timeoutMs: 10000, retries: 2 });
   const health = await client.getHealth();
   const current = await client.getCurrent({ lat: 55.7558, lon: 37.6176 });
   const history = await client.getHistoryByCity(\"moscow\", \"24h\", 1, 50, \"desc\");
   const trends = await client.getTrendsByCity(\"moscow\", \"7d\");
-  console.log(JSON.stringify({ health, current, history, trends }, null, 2));
+  const alerts = await client.listAlerts();
+  console.log(JSON.stringify({ health, current, history, trends, alerts }, null, 2));
 }
 
 main().catch((error) => {

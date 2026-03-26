@@ -25,7 +25,15 @@ def test_public_v2_openapi_artifact_only_contains_v2_paths():
     assert payload["info"]["title"] == "AirTrace RU Public API v2"
     assert payload["paths"]
     assert all(path.startswith("/v2/") for path in payload["paths"])
-    for route in ("/v2/current", "/v2/forecast", "/v2/history", "/v2/trends", "/v2/health"):
+    for route in (
+        "/v2/current",
+        "/v2/forecast",
+        "/v2/history",
+        "/v2/trends",
+        "/v2/health",
+        "/v2/alerts",
+        "/v2/alerts/{subscription_id}",
+    ):
         assert route in payload["paths"]
 
 

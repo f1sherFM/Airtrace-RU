@@ -5,6 +5,7 @@ export type Coordinates = {
 
 export type AirTraceClientOptions = {
   baseUrl?: string;
+  apiKey?: string;
   timeoutMs?: number;
   retries?: number;
 };
@@ -43,23 +44,40 @@ async function fetchWithTimeout(url: string, init: RequestInitWithTimeout): Prom
 
 export class AirTraceClient {
   private baseUrl: string;
+  private apiKey?: string;
   private timeoutMs: number;
   private retries: number;
 
   constructor(options: AirTraceClientOptions = {}) {
     this.baseUrl = options.baseUrl ?? "http://localhost:8000";
+    this.apiKey = options.apiKey;
     this.timeoutMs = options.timeoutMs ?? 10_000;
     this.retries = options.retries ?? 2;
   }
 
-  private async request<T>(path: string, params: Record<string, string>): Promise<T> {
+  private async request<T>(
+    method: string,
+    path: string,
+    params: Record<string, string>,
+    body?: unknown,
+    idempotencyKey?: string,
+  ): Promise<T> {
     const url = new URL(`${this.baseUrl}${path}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
 
     let lastError: unknown;
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
-        const response = await fetchWithTimeout(url.toString(), { method: "GET", timeoutMs: this.timeoutMs });
+        const headers: Record<string, string> = {};
+        if (this.apiKey) headers["X-API-Key"] = this.apiKey;
+        if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+        if (body !== undefined) headers["Content-Type"] = "application/json";
+        const response = await fetchWithTimeout(url.toString(), {
+          method,
+          timeoutMs: this.timeoutMs,
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
         if (!response.ok) {
           let payload: AirTraceErrorPayload | undefined;
           try {
@@ -81,18 +99,18 @@ export class AirTraceClient {
   }
 
   getHealth(): Promise<unknown> {
-    return this.request("/v2/health", {});
+    return this.request("GET", "/v2/health", {});
   }
 
   getCurrent(coords: Coordinates): Promise<unknown> {
-    return this.request("/v2/current", {
+    return this.request("GET", "/v2/current", {
       lat: String(coords.lat),
       lon: String(coords.lon),
     });
   }
 
   getForecast(coords: Coordinates, hours = 24): Promise<unknown> {
-    return this.request("/v2/forecast", {
+    return this.request("GET", "/v2/forecast", {
       lat: String(coords.lat),
       lon: String(coords.lon),
       hours: String(hours),
@@ -119,7 +137,7 @@ export class AirTraceClient {
       params.lat = String(options.lat);
       params.lon = String(options.lon);
     }
-    return this.request("/v2/history", params);
+    return this.request("GET", "/v2/history", params);
   }
 
   getHistoryByCity(city: string, range = "24h", page = 1, pageSize = 50, sort: "asc" | "desc" = "desc"): Promise<unknown> {
@@ -135,10 +153,30 @@ export class AirTraceClient {
       params.lat = String(options.lat);
       params.lon = String(options.lon);
     }
-    return this.request("/v2/trends", params);
+    return this.request("GET", "/v2/trends", params);
   }
 
   getTrendsByCity(city: string, range = "7d"): Promise<unknown> {
     return this.getTrends({ city, range });
+  }
+
+  listAlerts(): Promise<unknown> {
+    return this.request("GET", "/v2/alerts", {});
+  }
+
+  getAlert(subscriptionId: string): Promise<unknown> {
+    return this.request("GET", `/v2/alerts/${subscriptionId}`, {});
+  }
+
+  createAlert(payload: Record<string, unknown>, idempotencyKey?: string): Promise<unknown> {
+    return this.request("POST", "/v2/alerts", {}, payload, idempotencyKey);
+  }
+
+  updateAlert(subscriptionId: string, payload: Record<string, unknown>, idempotencyKey?: string): Promise<unknown> {
+    return this.request("PATCH", `/v2/alerts/${subscriptionId}`, {}, payload, idempotencyKey);
+  }
+
+  deleteAlert(subscriptionId: string): Promise<unknown> {
+    return this.request("DELETE", `/v2/alerts/${subscriptionId}`, {});
   }
 }
