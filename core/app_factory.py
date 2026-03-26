@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -17,19 +18,31 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from api.legacy import router as legacy_router
 from api.ops import router as ops_router
+from api.v2.alerts import router as v2_alerts_router
 from api.v1.readonly import router as v1_readonly_router
 from api.v2.readonly import router as v2_readonly_router
+from application.services.alerts import AlertSubscriptionService
 from config import config
 from core.settings import get_cities_mapping, load_cities_config
 from core.legacy_runtime import (
     get_air_quality_service,
+    get_telegram_delivery_service,
     set_air_quality_service,
+    set_alert_subscription_service,
     set_history_ingestion_pipeline,
     set_history_snapshot_store,
 )
 from graceful_degradation import get_graceful_degradation_manager
 from infrastructure.db import close_database_runtime, initialize_database_runtime, run_database_migrations
 from infrastructure.repositories import (
+    InMemoryAlertAuditRepository,
+    InMemoryAlertDeliveryAttemptRepository,
+    InMemoryAlertIdempotencyRepository,
+    InMemoryAlertSubscriptionRepository,
+    SQLAlchemyAlertAuditRepository,
+    SQLAlchemyAlertDeliveryAttemptRepository,
+    SQLAlchemyAlertIdempotencyRepository,
+    SQLAlchemyAlertSubscriptionRepository,
     SQLAlchemyAggregationRepository,
     SQLAlchemyHistoryRepository,
     SQLAlchemyLocationRepository,
@@ -136,6 +149,7 @@ async def lifespan(app: FastAPI):
     canonical_locations = build_canonical_locations_from_mapping(cities_mapping)
     history_store: Any
     history_ingestion_kwargs: dict[str, Any] = {}
+    alert_subscription_service: AlertSubscriptionService
     if config.database.enabled:
         if config.database.run_migrations_on_startup:
             run_database_migrations(config.database.alembic_url or config.database.url)
@@ -143,6 +157,10 @@ async def lifespan(app: FastAPI):
         location_repository = SQLAlchemyLocationRepository(runtime.session_factory)
         history_repository = SQLAlchemyHistoryRepository(runtime.session_factory)
         aggregation_repository = SQLAlchemyAggregationRepository(runtime.session_factory)
+        alert_subscription_repository = SQLAlchemyAlertSubscriptionRepository(runtime.session_factory)
+        alert_delivery_attempt_repository = SQLAlchemyAlertDeliveryAttemptRepository(runtime.session_factory)
+        alert_audit_repository = SQLAlchemyAlertAuditRepository(runtime.session_factory)
+        alert_idempotency_repository = SQLAlchemyAlertIdempotencyRepository(runtime.session_factory)
         persistence_service = HistoryPersistenceService(
             location_repository=location_repository,
             history_repository=history_repository,
@@ -162,6 +180,13 @@ async def lifespan(app: FastAPI):
             )
 
         unified_weather_service.set_current_persistence_callback(_persist_current_observation)
+        alert_subscription_service = AlertSubscriptionService(
+            subscription_repository=alert_subscription_repository,
+            delivery_attempt_repository=alert_delivery_attempt_repository,
+            audit_repository=alert_audit_repository,
+            idempotency_repository=alert_idempotency_repository,
+            telegram_delivery_service=get_telegram_delivery_service(),
+        )
         logger.info(
             "DB-backed history storage enabled (timescaledb=%s)",
             config.database.timescaledb_enabled,
@@ -169,8 +194,16 @@ async def lifespan(app: FastAPI):
     else:
         history_store = InMemoryHistoricalSnapshotStore()
         unified_weather_service.set_current_persistence_callback(None)
+        alert_subscription_service = AlertSubscriptionService(
+            subscription_repository=InMemoryAlertSubscriptionRepository(),
+            delivery_attempt_repository=InMemoryAlertDeliveryAttemptRepository(),
+            audit_repository=InMemoryAlertAuditRepository(),
+            idempotency_repository=InMemoryAlertIdempotencyRepository(),
+            telegram_delivery_service=get_telegram_delivery_service(),
+        )
 
     set_history_snapshot_store(history_store)
+    set_alert_subscription_service(alert_subscription_service)
     history_ingestion_pipeline = HistoryIngestionPipeline(
         fetch_current_data=unified_weather_service.get_current_combined_data,
         snapshot_store=history_store,
@@ -233,6 +266,7 @@ async def lifespan(app: FastAPI):
                 logger.warning("Connection pool cleanup failed: %s", exc)
 
         set_air_quality_service(None)
+        set_alert_subscription_service(None)
         set_history_ingestion_pipeline(None)
         set_history_snapshot_store(None)
         await close_database_runtime()
@@ -259,10 +293,17 @@ def _register_exception_handlers(app: FastAPI) -> None:
         return "INTERNAL_ERROR"
 
     def _build_v2_error_response(*, status_code: int, code: str, message: str, details: Any = None) -> UnicodeJSONResponse:
-        payload = ErrorResponse(code=code, message=message, details=details)
+        normalized_details = jsonable_encoder(
+            details,
+            custom_encoder={
+                Exception: lambda value: str(value),
+            },
+        )
+        payload = ErrorResponse(code=code, message=message, details=None).model_dump(mode="json")
+        payload["details"] = normalized_details
         return UnicodeJSONResponse(
             status_code=status_code,
-            content=payload.model_dump(mode="json"),
+            content=payload,
             headers=dict(V2_RESPONSE_HEADERS),
         )
 
@@ -282,14 +323,20 @@ def _register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
         logger.warning("Validation exception: %s", exc.errors())
+        normalized_details = jsonable_encoder(
+            exc.errors(),
+            custom_encoder={
+                Exception: lambda value: str(value),
+            },
+        )
         if _is_v2_request(request):
             return _build_v2_error_response(
                 status_code=422,
                 code="VALIDATION_ERROR",
                 message="Request validation failed",
-                details=exc.errors(),
+                details=normalized_details,
             )
-        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+        return JSONResponse(status_code=422, content={"detail": normalized_details})
 
     @app.exception_handler(Exception)
     async def general_exception_handler(request: Request, exc: Exception):
@@ -357,6 +404,7 @@ def create_api_app() -> FastAPI:
     _register_exception_handlers(app)
     app.include_router(v1_readonly_router)
     app.include_router(v2_readonly_router)
+    app.include_router(v2_alerts_router)
     app.include_router(legacy_router)
     app.include_router(ops_router)
     return app

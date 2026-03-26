@@ -577,6 +577,10 @@ class AlertSeverity(str, Enum):
     CRITICAL = "critical"
 
 
+class AlertChannel(str, Enum):
+    TELEGRAM = "telegram"
+
+
 class AlertRuleCreate(BaseModel):
     """Модель создания правила алерта"""
     name: str = Field(..., min_length=1, max_length=120)
@@ -688,6 +692,134 @@ class DeliveryResult(BaseModel):
     attempts: int = Field(..., ge=1)
     event_id: Optional[str] = None
     error: Optional[str] = None
+
+
+class AlertSubscriptionCreate(BaseModel):
+    """Public v2 alert subscription create model."""
+
+    name: str = Field(..., min_length=1, max_length=120)
+    enabled: bool = Field(default=True)
+    city: Optional[str] = Field(default=None, min_length=2, max_length=64)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lon: Optional[float] = Field(default=None, ge=-180, le=180)
+    aqi_threshold: Optional[int] = Field(default=None, ge=0, le=500)
+    nmu_levels: List[str] = Field(default_factory=list, description="Список уровней НМУ для триггера")
+    cooldown_minutes: int = Field(default=60, ge=1, le=1440)
+    quiet_hours_start: Optional[int] = Field(default=None, ge=0, le=23)
+    quiet_hours_end: Optional[int] = Field(default=None, ge=0, le=23)
+    channel: AlertChannel = Field(default=AlertChannel.TELEGRAM)
+    chat_id: str = Field(..., min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_subscription(self):
+        allowed_nmu = {"low", "medium", "high", "critical"}
+        normalized_levels = []
+        seen = set()
+        for level in self.nmu_levels:
+            normalized = (level or "").strip().lower()
+            if normalized not in allowed_nmu:
+                raise ValueError(f"Unsupported nmu level: {level}")
+            if normalized not in seen:
+                seen.add(normalized)
+                normalized_levels.append(normalized)
+        self.nmu_levels = normalized_levels
+
+        if self.aqi_threshold is None and not self.nmu_levels:
+            raise ValueError("At least one trigger is required: aqi_threshold or nmu_levels")
+
+        if (self.quiet_hours_start is None) != (self.quiet_hours_end is None):
+            raise ValueError("quiet_hours_start and quiet_hours_end must be provided together")
+
+        if (self.city is None) == (self.lat is None and self.lon is None):
+            raise ValueError("Provide either city or lat/lon for alert subscription")
+        if (self.lat is None) != (self.lon is None):
+            raise ValueError("lat and lon must be provided together")
+
+        if self.channel != AlertChannel.TELEGRAM:
+            raise ValueError("Only telegram channel is supported")
+
+        return self
+
+
+class AlertSubscriptionUpdate(BaseModel):
+    """Public v2 alert subscription patch model."""
+
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    enabled: Optional[bool] = None
+    city: Optional[str] = Field(default=None, min_length=2, max_length=64)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lon: Optional[float] = Field(default=None, ge=-180, le=180)
+    aqi_threshold: Optional[int] = Field(default=None, ge=0, le=500)
+    nmu_levels: Optional[List[str]] = None
+    cooldown_minutes: Optional[int] = Field(default=None, ge=1, le=1440)
+    quiet_hours_start: Optional[int] = Field(default=None, ge=0, le=23)
+    quiet_hours_end: Optional[int] = Field(default=None, ge=0, le=23)
+    channel: Optional[AlertChannel] = None
+    chat_id: Optional[str] = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def validate_patch(self):
+        if self.nmu_levels is not None:
+            allowed_nmu = {"low", "medium", "high", "critical"}
+            normalized_levels = []
+            seen = set()
+            for level in self.nmu_levels:
+                normalized = (level or "").strip().lower()
+                if normalized not in allowed_nmu:
+                    raise ValueError(f"Unsupported nmu level: {level}")
+                if normalized not in seen:
+                    seen.add(normalized)
+                    normalized_levels.append(normalized)
+            self.nmu_levels = normalized_levels
+
+        quiet_start_set = "quiet_hours_start" in self.__pydantic_fields_set__
+        quiet_end_set = "quiet_hours_end" in self.__pydantic_fields_set__
+        if quiet_start_set != quiet_end_set:
+            raise ValueError("quiet_hours_start and quiet_hours_end must be updated together")
+
+        city_set = "city" in self.__pydantic_fields_set__
+        lat_set = "lat" in self.__pydantic_fields_set__
+        lon_set = "lon" in self.__pydantic_fields_set__
+        if lat_set != lon_set:
+            raise ValueError("lat and lon must be updated together")
+        if city_set and (lat_set or lon_set):
+            raise ValueError("Update either city or lat/lon, not both")
+
+        if self.channel is not None and self.channel != AlertChannel.TELEGRAM:
+            raise ValueError("Only telegram channel is supported")
+
+        return self
+
+
+class AlertSubscription(BaseModel):
+    """Public v2 alert subscription model."""
+
+    id: str
+    name: str
+    enabled: bool
+    city: Optional[str] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    aqi_threshold: Optional[int] = None
+    nmu_levels: List[str] = Field(default_factory=list)
+    cooldown_minutes: int
+    quiet_hours_start: Optional[int] = None
+    quiet_hours_end: Optional[int] = None
+    channel: AlertChannel = AlertChannel.TELEGRAM
+    chat_id: str
+    last_triggered_at: Optional[datetime] = None
+    last_delivery_status: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    @field_serializer("created_at", "updated_at", "last_triggered_at")
+    def serialize_subscription_datetime(self, dt: Optional[datetime]) -> Optional[str]:
+        return dt.isoformat() if dt is not None else None
+
+
+class AlertSubscriptionDeleteResponse(BaseModel):
+    deleted: bool
+    id: str
 
 
 class DailyDigestResponse(BaseModel):

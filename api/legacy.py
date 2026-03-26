@@ -13,7 +13,7 @@ from fastapi.responses import Response
 
 from api.security import require_alert_delivery_auth
 from core.legacy_runtime import (
-    get_alert_rule_engine,
+    get_alert_subscription_service,
     get_history_snapshot_store,
     get_telegram_delivery_service,
 )
@@ -33,17 +33,20 @@ router = APIRouter()
 
 @router.post("/alerts/rules", response_model=AlertRule)
 async def create_alert_rule(payload: AlertRuleCreate):
-    return get_alert_rule_engine().create_rule(payload)
+    try:
+        return await get_alert_subscription_service().create_legacy_rule(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get("/alerts/rules", response_model=list[AlertRule])
 async def list_alert_rules():
-    return get_alert_rule_engine().list_rules()
+    return await get_alert_subscription_service().list_legacy_rules()
 
 
 @router.delete("/alerts/rules/{rule_id}")
 async def delete_alert_rule(rule_id: str):
-    deleted = get_alert_rule_engine().delete_rule(rule_id)
+    deleted = await get_alert_subscription_service().delete_legacy_rule(rule_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Правило алерта не найдено")
     return {"deleted": True, "rule_id": rule_id}
@@ -52,7 +55,7 @@ async def delete_alert_rule(rule_id: str):
 @router.put("/alerts/rules/{rule_id}", response_model=AlertRule)
 async def update_alert_rule(rule_id: str, payload: AlertRuleUpdate):
     try:
-        updated = get_alert_rule_engine().update_rule(rule_id, payload)
+        updated = await get_alert_subscription_service().update_legacy_rule(rule_id, payload)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     if updated is None:
@@ -66,7 +69,12 @@ async def check_current_alerts(
     lon: float = Query(..., ge=-180, le=180),
 ):
     data = await unified_weather_service.get_current_combined_data(lat, lon)
-    return get_alert_rule_engine().evaluate(aqi=data.aqi.value, nmu_risk=data.nmu_risk)
+    return await get_alert_subscription_service().evaluate_conditions(
+        aqi=data.aqi.value,
+        nmu_risk=data.nmu_risk,
+        lat=lat,
+        lon=lon,
+    )
 
 
 @router.post("/alerts/telegram/send", response_model=DeliveryResult)
@@ -86,33 +94,19 @@ async def check_current_alerts_and_deliver(
     chat_id: Optional[str] = Query(None, min_length=1, max_length=128),
 ):
     data = await unified_weather_service.get_current_combined_data(lat, lon)
-    alert_rule_engine = get_alert_rule_engine()
-    telegram_delivery_service = get_telegram_delivery_service()
-    events = alert_rule_engine.evaluate(aqi=data.aqi.value, nmu_risk=data.nmu_risk)
-    delivered: list[DeliveryResult] = []
-    for idx, event in enumerate(events, start=1):
-        if event.suppressed:
-            continue
-        rule = alert_rule_engine.get_rule(event.rule_id)
-        destination_chat_id = chat_id or (rule.chat_id if rule else None)
-        if not destination_chat_id:
-            continue
-        text = (
-            f"AirTrace Alert #{idx}\n"
-            f"Rule: {event.rule_name}\n"
-            f"AQI: {data.aqi.value}\n"
-            f"NMU: {data.nmu_risk}\n"
-            f"Severity: {event.severity}\n"
-            f"Reasons: {', '.join(event.reasons)}"
-        )
-        event_id = f"{event.rule_id}:{int(event.triggered_at.timestamp())}"
-        result = await telegram_delivery_service.send_message(
-            chat_id=destination_chat_id,
-            text=text,
-            event_id=event_id,
-        )
-        delivered.append(DeliveryResult(**result))
-    return delivered
+    alert_subscription_service = get_alert_subscription_service()
+    events = await alert_subscription_service.evaluate_conditions(
+        aqi=data.aqi.value,
+        nmu_risk=data.nmu_risk,
+        lat=lat,
+        lon=lon,
+    )
+    return await alert_subscription_service.deliver_events(
+        events=events,
+        aqi=data.aqi.value,
+        nmu_risk=data.nmu_risk,
+        chat_id_override=chat_id,
+    )
 
 
 @router.get("/alerts/delivery-status")

@@ -1,5 +1,17 @@
-"""Concrete repository implementations for Stage 2 persistence."""
+"""Concrete repository implementations for Stage 2/4 persistence."""
 
+from .inmemory_alerts import (
+    InMemoryAlertAuditRepository,
+    InMemoryAlertDeliveryAttemptRepository,
+    InMemoryAlertIdempotencyRepository,
+    InMemoryAlertSubscriptionRepository,
+)
+from .sqlalchemy_alerts import (
+    SQLAlchemyAlertAuditRepository,
+    SQLAlchemyAlertDeliveryAttemptRepository,
+    SQLAlchemyAlertIdempotencyRepository,
+    SQLAlchemyAlertSubscriptionRepository,
+)
 from .sqlalchemy_history import (
     SQLAlchemyAggregationRepository,
     SQLAlchemyHistoryRepository,
@@ -7,6 +19,14 @@ from .sqlalchemy_history import (
 )
 
 __all__ = [
+    "InMemoryAlertAuditRepository",
+    "InMemoryAlertDeliveryAttemptRepository",
+    "InMemoryAlertIdempotencyRepository",
+    "InMemoryAlertSubscriptionRepository",
+    "SQLAlchemyAlertAuditRepository",
+    "SQLAlchemyAlertDeliveryAttemptRepository",
+    "SQLAlchemyAlertIdempotencyRepository",
+    "SQLAlchemyAlertSubscriptionRepository",
     "SQLAlchemyAggregationRepository",
     "SQLAlchemyHistoryRepository",
     "SQLAlchemyLocationRepository",

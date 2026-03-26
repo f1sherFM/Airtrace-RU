@@ -13,6 +13,7 @@ _RUNTIME_DEFAULTS: dict[str, Any] = {
     "history_ingestion_pipeline": None,
     "history_snapshot_store": None,
     "alert_rule_engine": None,
+    "alert_subscription_service": None,
     "telegram_delivery_service": None,
 }
 
@@ -61,6 +62,14 @@ def set_history_snapshot_store(store: Any) -> None:
 
 def get_alert_rule_engine() -> Any:
     return get_runtime_value("alert_rule_engine")
+
+
+def get_alert_subscription_service() -> Any:
+    return get_runtime_value("alert_subscription_service")
+
+
+def set_alert_subscription_service(service: Any) -> None:
+    set_runtime_value("alert_subscription_service", service)
 
 
 def get_telegram_delivery_service() -> Any:
