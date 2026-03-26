@@ -152,6 +152,16 @@ class SQLAlchemyAlertSubscriptionRepository(_SQLAlchemyAlertRepositoryBase, Aler
             result = await session.execute(statement)
             return [_to_subscription_record(model) for model in result.scalars().all()]
 
+    async def list_active_subscriptions(self) -> list[AlertSubscriptionRecord]:
+        async with self._session() as session:
+            result = await session.execute(
+                select(AlertSubscriptionModel).where(
+                    AlertSubscriptionModel.deleted_at.is_(None),
+                    AlertSubscriptionModel.enabled.is_(True),
+                ).order_by(AlertSubscriptionModel.created_at.desc())
+            )
+            return [_to_subscription_record(model) for model in result.scalars().all()]
+
     async def get_subscription(self, subscription_id: str) -> Optional[AlertSubscriptionRecord]:
         async with self._session() as session:
             result = await session.execute(select(AlertSubscriptionModel).where(AlertSubscriptionModel.id == subscription_id))

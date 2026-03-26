@@ -79,6 +79,13 @@ class InMemoryAlertSubscriptionRepository(AlertSubscriptionRepository):
             return items
         return [record for record in items if record.deleted_at is None]
 
+    async def list_active_subscriptions(self) -> list[AlertSubscriptionRecord]:
+        return [
+            record
+            for record in await self.list_subscriptions(include_deleted=False)
+            if record.enabled
+        ]
+
     async def get_subscription(self, subscription_id: str) -> Optional[AlertSubscriptionRecord]:
         return self._subscriptions.get(subscription_id)
 

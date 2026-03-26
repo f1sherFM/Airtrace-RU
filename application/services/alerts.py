@@ -235,6 +235,9 @@ class AlertSubscriptionService:
         records = await self._subscription_repository.list_subscriptions(include_deleted=False)
         return [self._record_to_public(record) for record in records if record.chat_id is not None]
 
+    async def list_active_subscription_records(self) -> list[AlertSubscriptionRecord]:
+        return await self._subscription_repository.list_active_subscriptions()
+
     async def get_subscription(self, subscription_id: str) -> Optional[AlertSubscription]:
         record = await self._subscription_repository.get_subscription(subscription_id)
         if record is None or record.deleted_at is not None or record.chat_id is None:

@@ -21,6 +21,7 @@ from api.ops import router as ops_router
 from api.v2.alerts import router as v2_alerts_router
 from api.v1.readonly import router as v1_readonly_router
 from api.v2.readonly import router as v2_readonly_router
+from application.services.alert_worker import AlertEvaluationWorker
 from application.services.alerts import AlertSubscriptionService
 from config import config
 from core.settings import get_cities_mapping, load_cities_config
@@ -219,6 +220,15 @@ async def lifespan(app: FastAPI):
     history_task = asyncio.create_task(
         periodic_history_ingestion(int(os.getenv("HISTORY_INGEST_INTERVAL_SECONDS", "3600")))
     )
+    alert_worker_task: asyncio.Task[None] | None = None
+    if config.alert_evaluation.enabled:
+        alert_worker = AlertEvaluationWorker(
+            alert_service=alert_subscription_service,
+            fetch_current_data=unified_weather_service.get_current_combined_data,
+        )
+        alert_worker_task = asyncio.create_task(
+            alert_worker.run_forever(interval_seconds=config.alert_evaluation.interval_seconds)
+        )
     logger.info("Background tasks started")
 
     try:
@@ -227,7 +237,11 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down AirTrace RU Backend...")
         cleanup_task.cancel()
         history_task.cancel()
-        for task in (cleanup_task, history_task):
+        tasks_to_cancel = [cleanup_task, history_task]
+        if alert_worker_task is not None:
+            alert_worker_task.cancel()
+            tasks_to_cancel.append(alert_worker_task)
+        for task in tasks_to_cancel:
             try:
                 await task
             except asyncio.CancelledError:

@@ -344,6 +344,18 @@ class DatabaseConfig:
         return self.history_backend == "database" and bool(self.url)
 
 
+@dataclass
+class AlertEvaluationConfig:
+    """Runtime configuration for in-process alert evaluation worker."""
+
+    enabled: bool = field(default_factory=lambda: os.getenv("ALERT_EVALUATION_ENABLED", "true").lower() == "true")
+    interval_seconds: int = field(default_factory=lambda: int(os.getenv("ALERT_EVALUATION_INTERVAL_SECONDS", "300")))
+
+    def __post_init__(self):
+        if self.interval_seconds <= 0:
+            self.interval_seconds = 300
+
+
 class ConfigManager:
     """Central configuration manager for the application"""
     
@@ -354,6 +366,7 @@ class ConfigManager:
         self.api = ApiTransportConfig()
         self.history = HistoryConfig()
         self.database = DatabaseConfig()
+        self.alert_evaluation = AlertEvaluationConfig()
         self.weather_api = WeatherAPIConfig()
         self.request_optimization = RequestOptimizationConfig()
         self._validate_configuration()
@@ -458,6 +471,8 @@ class ConfigManager:
         logger.info(f"  History storage backend: {self.database.history_backend}")
         logger.info(f"  Database enabled: {self.database.enabled}")
         logger.info(f"  TimescaleDB enabled: {self.database.timescaledb_enabled}")
+        logger.info(f"  Alert evaluation enabled: {self.alert_evaluation.enabled}")
+        logger.info(f"  Alert evaluation interval seconds: {self.alert_evaluation.interval_seconds}")
         logger.info(
             "  History anomaly thresholds: "
             f"window={self.history.anomaly_baseline_window}, "
