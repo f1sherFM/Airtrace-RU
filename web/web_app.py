@@ -47,6 +47,10 @@ from application.web import (  # noqa: E402
     get_nmu_config,
     normalize_api_status,
     prepare_export_data,
+    translate_api_status,
+    translate_freshness,
+    translate_source,
+    translate_trend,
 )
 from core.settings import get_cities_mapping  # noqa: E402
 
@@ -67,6 +71,11 @@ app = FastAPI(title="AirTrace RU Web Interface", lifespan=lifespan)
 logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["encoding"] = "utf-8"
+templates.env.globals["format_time"] = format_time
+templates.env.globals["translate_api_status"] = translate_api_status
+templates.env.globals["translate_source"] = translate_source
+templates.env.globals["translate_freshness"] = translate_freshness
+templates.env.globals["translate_trend"] = translate_trend
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -87,7 +96,7 @@ def _render_city_error(request: Request, city: dict[str, Any], error_message: st
             "cities": CITIES,
             "error_message": error_message,
             "city": city,
-            "title": f"Error - {city['name']}",
+            "title": f"Ошибка - {city['name']}",
         },
     )
 
@@ -165,7 +174,7 @@ async def custom_city_form(request: Request):
             "request": request,
             "cities": CITIES,
             "api_status": "healthy",
-            "title": "AirTrace RU - Custom City",
+            "title": "AirTrace RU - Произвольный город",
         },
     )
 

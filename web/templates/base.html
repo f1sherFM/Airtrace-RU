@@ -39,7 +39,7 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}page-bg{% endblock %} min-h-screen text-white p-4 md:p-8">
-    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <a href="#main-content" class="skip-link">Перейти к содержимому</a>
     <div class="max-w-7xl mx-auto">
         <header class="mb-8" role="banner">
             <div class="glass rounded-3xl p-5 md:p-6">
@@ -49,26 +49,26 @@
                             <i data-lucide="wind" class="w-7 h-7 text-teal-200"></i>
                             <a href="/" class="text-3xl font-bold tracking-tight hover:text-teal-100">AirTrace RU</a>
                         </div>
-                        <p class="text-sm opacity-80">{% block location_display %}Select a city for air-quality monitoring{% endblock %}</p>
+                        <p class="text-sm opacity-80">{% block location_display %}Выберите город для мониторинга качества воздуха{% endblock %}</p>
                     </div>
                     <div class="flex flex-col lg:flex-row gap-3 lg:items-center" aria-label="Navigation and controls">
                         {% include 'custom_select.html' %}
                         <nav class="flex flex-wrap gap-2">
-                            <a href="/compare?cities=moscow,spb" class="btn-glass rounded-xl px-4 py-2 text-sm">Compare</a>
-                            <a href="/alerts/settings" class="btn-glass rounded-xl px-4 py-2 text-sm">Alerts</a>
+                            <a href="/compare?cities=moscow,spb" class="btn-glass rounded-xl px-4 py-2 text-sm">Сравнение</a>
+                            <a href="/alerts/settings" class="btn-glass rounded-xl px-4 py-2 text-sm">Уведомления</a>
                             {% if current_city %}
                                 {% if is_custom %}
-                                    <a href="/history/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}" class="btn-glass rounded-xl px-4 py-2 text-sm">History</a>
-                                    <a href="/trends/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}" class="btn-glass rounded-xl px-4 py-2 text-sm">Trends</a>
+                                    <a href="/history/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}" class="btn-glass rounded-xl px-4 py-2 text-sm">История</a>
+                                    <a href="/trends/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}" class="btn-glass rounded-xl px-4 py-2 text-sm">Тренды</a>
                                 {% else %}
-                                    <a href="/history/{{ city_key }}" class="btn-glass rounded-xl px-4 py-2 text-sm">History</a>
-                                    <a href="/trends/{{ city_key }}" class="btn-glass rounded-xl px-4 py-2 text-sm">Trends</a>
+                                    <a href="/history/{{ city_key }}" class="btn-glass rounded-xl px-4 py-2 text-sm">История</a>
+                                    <a href="/trends/{{ city_key }}" class="btn-glass rounded-xl px-4 py-2 text-sm">Тренды</a>
                                 {% endif %}
                             {% endif %}
                         </nav>
                         <div class="flex items-center gap-2 text-xs" aria-live="polite" aria-label="Backend API status">
                             <span class="w-2.5 h-2.5 rounded-full {% if api_reachable is defined and not api_reachable %}bg-red-500{% elif api_status == 'healthy' %}bg-green-500{% elif api_status == 'unhealthy' %}bg-red-500{% else %}bg-yellow-400{% endif %}"></span>
-                            <span>{% if api_reachable is defined and not api_reachable %}API unavailable{% else %}API {{ api_status or 'degraded' }}{% endif %}</span>
+                            <span>{% if api_reachable is defined and not api_reachable %}API недоступен{% else %}API {{ translate_api_status(api_status) }}{% endif %}</span>
                         </div>
                     </div>
                 </div>
@@ -80,7 +80,7 @@
         </main>
 
         <footer class="mt-12 text-center text-xs opacity-60" role="contentinfo">
-            <p>&copy; 2026 AirTrace RU. New core, stable history, trends and explainability.</p>
+            <p>&copy; 2026 AirTrace RU. Новое ядро, стабильная история, тренды и объяснимость.</p>
         </footer>
     </div>
     <script>lucide.createIcons();</script>

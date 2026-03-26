@@ -49,14 +49,14 @@ def normalize_current_payload(payload: dict[str, Any], *, lat: float, lon: float
     normalized = dict(payload or {})
     aqi = dict(normalized.get("aqi") or {})
     aqi.setdefault("value", 0)
-    aqi.setdefault("category", "No data")
+    aqi.setdefault("category", "Нет данных")
     aqi.setdefault("color", "#FFFFFF")
-    aqi.setdefault("description", "No AQI description available")
+    aqi.setdefault("description", "Описание AQI пока недоступно")
     normalized["aqi"] = aqi
     normalized["location"] = normalized.get("location") or {"latitude": lat, "longitude": lon}
     normalized["pollutants"] = _normalize_pollutants(normalized)
     normalized.setdefault("timestamp", _utc_now_iso())
-    normalized.setdefault("recommendations", "No recommendations available")
+    normalized.setdefault("recommendations", "Рекомендации пока недоступны")
     normalized.setdefault("nmu_risk", "low")
     normalized.setdefault("health_warnings", [])
     normalized["metadata"] = _metadata_from_payload(normalized)
@@ -90,7 +90,7 @@ async def build_index_context(*, request: Any, service: WebAppService) -> dict[s
         "cities": get_cities_mapping(),
         "api_status": health.get("status", "degraded"),
         "api_reachable": bool(health.get("reachable", False)),
-        "title": "AirTrace RU - Air Quality Monitoring",
+        "title": "AirTrace RU - Мониторинг качества воздуха",
     }
 
 
@@ -169,7 +169,7 @@ async def build_history_page_context(
         "selected_range": range_preset,
         "history_records": normalize_history_payload((history_raw or {}).get("items", [])),
         "explainability": build_explainability(current),
-        "title": f"History - {city['name']}",
+        "title": f"История - {city['name']}",
         "api_status": "healthy",
         "is_custom": is_custom,
     }
@@ -201,7 +201,7 @@ async def build_trends_page_context(
         "selected_range": range_preset,
         "trend_payload": trends,
         "explainability": build_explainability(current),
-        "title": f"Trends - {city['name']}",
+        "title": f"Тренды - {city['name']}",
         "api_status": "healthy",
         "is_custom": is_custom,
     }
@@ -237,7 +237,7 @@ async def build_compare_page_context(
         "cities": cities,
         "compare_cards": cards,
         "selected_cities": selected,
-        "title": "Compare Cities",
+        "title": "Сравнение городов",
         "api_status": "healthy",
     }
 
@@ -249,5 +249,5 @@ async def build_alerts_page_context(*, request: Any, service: WebAppService) -> 
         "cities": get_cities_mapping(),
         "rules": subscriptions,
         "api_status": "healthy",
-        "title": "AirTrace RU - Alert Subscriptions",
+        "title": "AirTrace RU - Подписки на уведомления",
     }

@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
 {% block title %}{{ title }}{% endblock %}
-{% block location_display %}{{ current_city.name }} history{% endblock %}
+{% block location_display %}{{ current_city.name }} — история{% endblock %}
 
 {% block content %}
 <section class="glass rounded-3xl p-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div>
-            <h2 class="text-2xl font-semibold">History</h2>
-            <p class="text-sm opacity-75">Historical AQI observations with provenance and confidence.</p>
+            <h2 class="text-2xl font-semibold">История</h2>
+            <p class="text-sm opacity-75">Исторические наблюдения AQI с указанием источника и уровня уверенности.</p>
         </div>
         <div class="flex gap-2">
             {% if is_custom %}
@@ -24,11 +24,11 @@
     </div>
 
     <div class="panel rounded-2xl p-4 mb-6" data-testid="explainability-block">
-        <div class="text-sm font-semibold mb-3">Explainability</div>
+        <div class="text-sm font-semibold mb-3">Пояснение к данным</div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-            <div><span class="opacity-70">source:</span> {{ explainability.source }}</div>
-            <div><span class="opacity-70">freshness:</span> {{ explainability.freshness }}</div>
-            <div><span class="opacity-70">confidence:</span> {{ "%.2f"|format(explainability.confidence or 0) }}</div>
+            <div><span class="opacity-70">Источник:</span> {{ translate_source(explainability.source) }}</div>
+            <div><span class="opacity-70">Свежесть:</span> {{ translate_freshness(explainability.freshness) }}</div>
+            <div><span class="opacity-70">Уверенность:</span> {{ "%.2f"|format(explainability.confidence or 0) }}</div>
         </div>
     </div>
 
@@ -42,13 +42,13 @@
                         <div class="text-xs opacity-70">{{ point.timestamp }}</div>
                     </div>
                     <div class="text-xs opacity-75">
-                        {{ point.metadata.data_source }} / {{ point.metadata.freshness }} / confidence {{ "%.2f"|format(point.metadata.confidence or 0) }}
+                        {{ translate_source(point.metadata.data_source) }} / {{ translate_freshness(point.metadata.freshness) }} / уверенность {{ "%.2f"|format(point.metadata.confidence or 0) }}
                     </div>
                 </div>
             </div>
             {% endfor %}
         {% else %}
-        <div class="text-sm opacity-70">No history records available for this range.</div>
+        <div class="text-sm opacity-70">За выбранный диапазон истории нет.</div>
         {% endif %}
     </div>
 </section>

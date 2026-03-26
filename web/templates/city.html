@@ -9,7 +9,7 @@
     <div class="xl:col-span-2 glass rounded-3xl p-8">
         <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
             <div>
-                <div class="text-xs uppercase tracking-[0.25em] opacity-70 mb-3">Now</div>
+                <div class="text-xs uppercase tracking-[0.25em] opacity-70 mb-3">Сейчас</div>
                 <div class="flex items-end gap-4">
                     <span class="text-7xl font-bold">{{ data.aqi.value }}</span>
                     <div>
@@ -19,20 +19,20 @@
                 </div>
             </div>
             <div class="panel rounded-2xl p-4 min-w-[230px]">
-                <div class="text-xs uppercase tracking-wide opacity-70 mb-2">Coordinates</div>
+                <div class="text-xs uppercase tracking-wide opacity-70 mb-2">Координаты</div>
                 <div class="text-sm font-mono">{{ "%.4f"|format(data.location.latitude) }}, {{ "%.4f"|format(data.location.longitude) }}</div>
-                <div class="text-xs opacity-70 mt-2">Updated: {{ format_time(data.timestamp) }}</div>
+                <div class="text-xs opacity-70 mt-2">Обновлено: {{ format_time(data.timestamp) }}</div>
             </div>
         </div>
         <div class="mt-6 panel rounded-2xl p-4">
-            <div class="text-sm font-semibold mb-2">Recommendations</div>
+            <div class="text-sm font-semibold mb-2">Рекомендации</div>
             <p class="text-sm opacity-85">{{ data.recommendations }}</p>
         </div>
     </div>
 
     <div class="space-y-6">
         <div class="glass rounded-3xl p-6 border-l-4 {{ nmu_config.border }}">
-            <div class="text-xs uppercase tracking-wide opacity-70 mb-2">NMU risk</div>
+            <div class="text-xs uppercase tracking-wide opacity-70 mb-2">Риск НМУ</div>
             <div class="flex items-center gap-3">
                 <i data-lucide="{{ nmu_config.icon }}" class="{{ nmu_config.color }} w-7 h-7"></i>
                 <div>
@@ -43,23 +43,23 @@
         </div>
 
         <div class="glass rounded-3xl p-6">
-            <div class="text-xs uppercase tracking-wide opacity-70 mb-3">Explainability</div>
+            <div class="text-xs uppercase tracking-wide opacity-70 mb-3">Пояснение к данным</div>
             <div class="space-y-3 text-sm" data-testid="explainability-block">
-                <div class="flex justify-between gap-4"><span class="opacity-70">source</span><span>{{ explainability.source }}</span></div>
-                <div class="flex justify-between gap-4"><span class="opacity-70">freshness</span><span>{{ explainability.freshness }}</span></div>
-                <div class="flex justify-between gap-4"><span class="opacity-70">confidence</span><span>{{ "%.2f"|format(explainability.confidence or 0) }}</span></div>
+                <div class="flex justify-between gap-4"><span class="opacity-70">Источник</span><span>{{ translate_source(explainability.source) }}</span></div>
+                <div class="flex justify-between gap-4"><span class="opacity-70">Свежесть</span><span>{{ translate_freshness(explainability.freshness) }}</span></div>
+                <div class="flex justify-between gap-4"><span class="opacity-70">Уверенность</span><span>{{ "%.2f"|format(explainability.confidence or 0) }}</span></div>
                 {% if explainability.confidence_explanation %}
                 <div class="text-xs opacity-75">{{ explainability.confidence_explanation }}</div>
                 {% endif %}
                 {% if explainability.fallback_used %}
-                <div class="text-xs px-2 py-1 rounded-lg bg-amber-400/15 border border-amber-300/30 inline-block">fallback used</div>
+                <div class="text-xs px-2 py-1 rounded-lg bg-amber-400/15 border border-amber-300/30 inline-block">Используется резервный источник</div>
                 {% endif %}
             </div>
         </div>
 
         {% if data.health_warnings %}
         <div class="glass rounded-3xl p-6">
-            <div class="text-xs uppercase tracking-wide opacity-70 mb-3">Warnings</div>
+            <div class="text-xs uppercase tracking-wide opacity-70 mb-3">Предупреждения</div>
             <div class="space-y-2">
                 {% for warning in data.health_warnings %}
                 <div class="panel rounded-xl p-3 text-sm">{{ warning }}</div>
@@ -71,10 +71,10 @@
 </section>
 
 <section class="mt-6 glass rounded-3xl p-6">
-    <h3 class="text-xl font-semibold mb-4">Action plan</h3>
+    <h3 class="text-xl font-semibold mb-4">План действий</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="panel rounded-2xl p-4">
-            <div class="text-sm font-semibold mb-3">Immediate next hour</div>
+            <div class="text-sm font-semibold mb-3">Что сделать сейчас</div>
             <ul class="space-y-2 text-sm">
                 {% for item in action_plan.immediate %}
                 <li>{{ item }}</li>
@@ -82,7 +82,7 @@
             </ul>
         </div>
         <div class="panel rounded-2xl p-4">
-            <div class="text-sm font-semibold mb-3">Sensitive groups</div>
+            <div class="text-sm font-semibold mb-3">Чувствительные группы</div>
             <ul class="space-y-2 text-sm">
                 {% for item in action_plan.sensitive %}
                 <li>{{ item }}</li>
@@ -103,7 +103,7 @@
 <section class="mt-6 grid grid-cols-1 xl:grid-cols-2 gap-6">
     <div class="glass rounded-3xl p-6" id="forecast-section">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-xl font-semibold">Forecast</h3>
+            <h3 class="text-xl font-semibold">Прогноз</h3>
             <div class="flex gap-2">
                 <button type="button" class="btn-glass rounded-lg px-3 py-1 text-sm" aria-pressed="true">24h</button>
                 <button type="button" class="btn-glass rounded-lg px-3 py-1 text-sm" aria-pressed="false">48h</button>
@@ -123,17 +123,17 @@
             {% endfor %}
         </div>
         {% else %}
-        <div class="text-sm opacity-70">No forecast data available.</div>
+        <div class="text-sm opacity-70">Данные прогноза пока недоступны.</div>
         {% endif %}
     </div>
 
     <div class="glass rounded-3xl p-6" id="history-section">
         <div class="flex items-center justify-between mb-4">
-            <h3 class="text-xl font-semibold">Recent history</h3>
+            <h3 class="text-xl font-semibold">Последняя история</h3>
             {% if is_custom %}
-            <a href="/history/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}" class="btn-glass rounded-lg px-3 py-1 text-sm">Open full history</a>
+            <a href="/history/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}" class="btn-glass rounded-lg px-3 py-1 text-sm">Открыть полную историю</a>
             {% else %}
-            <a href="/history/{{ city_key }}" class="btn-glass rounded-lg px-3 py-1 text-sm">Open full history</a>
+            <a href="/history/{{ city_key }}" class="btn-glass rounded-lg px-3 py-1 text-sm">Открыть полную историю</a>
             {% endif %}
         </div>
         <div class="space-y-3" aria-live="polite" aria-busy="false">
@@ -146,13 +146,13 @@
                             <div class="text-xs opacity-70">{{ point.timestamp }}</div>
                         </div>
                         <div class="text-xs opacity-80">
-                            {{ point.metadata.data_source }} / {{ point.metadata.freshness }} / confidence {{ "%.2f"|format(point.metadata.confidence or 0) }}
+                            {{ translate_source(point.metadata.data_source) }} / {{ translate_freshness(point.metadata.freshness) }} / уверенность {{ "%.2f"|format(point.metadata.confidence or 0) }}
                         </div>
                     </div>
                 </div>
                 {% endfor %}
             {% else %}
-                <div class="text-sm opacity-70">History is not available yet for this location.</div>
+                <div class="text-sm opacity-70">История для этой точки пока недоступна.</div>
             {% endif %}
         </div>
     </div>
@@ -161,15 +161,15 @@
 <section class="mt-6 glass rounded-3xl p-6">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-            <h3 class="text-xl font-semibold mb-2">Trend summary</h3>
-            <p class="text-sm opacity-80">{{ trend_summary or "Trend summary is not available yet." }}</p>
+            <h3 class="text-xl font-semibold mb-2">Сводка по тренду</h3>
+            <p class="text-sm opacity-80">{{ trend_summary or "Сводка по тренду пока недоступна." }}</p>
         </div>
         <div class="flex flex-wrap gap-3">
             {% if is_custom %}
-            <a href="/trends/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}" class="btn-glass rounded-xl px-4 py-2">Open trends</a>
+            <a href="/trends/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}" class="btn-glass rounded-xl px-4 py-2">Открыть тренды</a>
             {% else %}
-            <a href="/trends/{{ city_key }}" class="btn-glass rounded-xl px-4 py-2">Open trends</a>
-            <a href="/compare?cities={{ city_key }},moscow" class="btn-glass rounded-xl px-4 py-2">Compare with Moscow</a>
+            <a href="/trends/{{ city_key }}" class="btn-glass rounded-xl px-4 py-2">Открыть тренды</a>
+            <a href="/compare?cities={{ city_key }},moscow" class="btn-glass rounded-xl px-4 py-2">Сравнить с Москвой</a>
             {% endif %}
         </div>
     </div>

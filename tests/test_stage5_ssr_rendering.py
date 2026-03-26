@@ -22,6 +22,12 @@ def _load_web_app_module():
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         module.templates = Jinja2Templates(directory=str(repo_root / "web" / "templates"))
+        module.templates.env.globals["encoding"] = "utf-8"
+        module.templates.env.globals["format_time"] = module.format_time
+        module.templates.env.globals["translate_api_status"] = module.translate_api_status
+        module.templates.env.globals["translate_source"] = module.translate_source
+        module.templates.env.globals["translate_freshness"] = module.translate_freshness
+        module.templates.env.globals["translate_trend"] = module.translate_trend
         return module
     finally:
         os.chdir(previous_cwd)
@@ -139,10 +145,10 @@ async def test_stage5_city_page_renders_explainability_block():
 
     assert response.status_code == 200
     html = response.text
-    assert "Explainability" in html
-    assert "source" in html
-    assert "freshness" in html
-    assert "confidence" in html
+    assert "Пояснение к данным" in html
+    assert "Источник" in html
+    assert "Свежесть" in html
+    assert "Уверенность" in html
 
 
 @pytest.mark.asyncio
@@ -168,9 +174,9 @@ async def test_stage5_history_page_renders_with_mock_data():
 
     assert response.status_code == 200
     html = response.text
-    assert "History" in html
+    assert "История" in html
     assert "AQI 80" in html
-    assert "source:" in html
+    assert "Источник:" in html
 
 
 @pytest.mark.asyncio
@@ -196,8 +202,8 @@ async def test_stage5_trends_page_renders_with_mock_data():
 
     assert response.status_code == 200
     html = response.text
-    assert "Trends" in html
-    assert "stable" in html
+    assert "Тренды" in html
+    assert "стабильно" in html
     assert "aqi avg" in html
 
 
@@ -228,8 +234,8 @@ async def test_stage5_compare_page_renders_two_and_three_cities():
 
     assert response_two.status_code == 200
     assert response_three.status_code == 200
-    assert response_two.text.count("AQI now") == 2
-    assert response_three.text.count("AQI now") == 3
+    assert response_two.text.count("AQI сейчас") == 2
+    assert response_three.text.count("AQI сейчас") == 3
 
 
 @pytest.mark.asyncio

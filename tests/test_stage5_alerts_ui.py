@@ -22,6 +22,12 @@ def _load_web_app_module():
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         module.templates = Jinja2Templates(directory=str(repo_root / "web" / "templates"))
+        module.templates.env.globals["encoding"] = "utf-8"
+        module.templates.env.globals["format_time"] = module.format_time
+        module.templates.env.globals["translate_api_status"] = module.translate_api_status
+        module.templates.env.globals["translate_source"] = module.translate_source
+        module.templates.env.globals["translate_freshness"] = module.translate_freshness
+        module.templates.env.globals["translate_trend"] = module.translate_trend
         return module
     finally:
         os.chdir(previous_cwd)
@@ -66,8 +72,8 @@ async def test_stage5_alerts_page_renders_subscription_status_fields():
     assert response.status_code == 200
     html = response.text
     assert "Telegram chat_id" in html
-    assert "last delivery" in html
-    assert "last triggered" in html
+    assert "Последняя доставка" in html
+    assert "Последнее срабатывание" in html
 
 
 @pytest.mark.asyncio

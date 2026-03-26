@@ -231,9 +231,9 @@ class WebAppService:
             return DailyDigestResponse(
                 location_label=label,
                 trend="stable",
-                top_warnings=["Insufficient data for a full daily digest"],
-                recommended_actions=["Check history availability and try again later"],
-                summary_text=f"No history data available for {label}.",
+                top_warnings=["Недостаточно данных для полного дайджеста за сутки"],
+                recommended_actions=["Проверьте доступность истории и повторите позже"],
+                summary_text=f"Для {label} пока нет достаточной истории.",
             )
 
         def _aqi_value(item: Any) -> int:
@@ -261,26 +261,26 @@ class WebAppService:
         max_aqi = max(_aqi_value(item) for item in items)
         warnings: list[str] = []
         if max_aqi >= 200:
-            warnings.append("There were periods of very high pollution (AQI >= 200)")
+            warnings.append("Были периоды очень высокого загрязнения (AQI >= 200)")
         elif max_aqi >= 150:
-            warnings.append("There were periods of high pollution (AQI >= 150)")
+            warnings.append("Были периоды высокого загрязнения (AQI >= 150)")
         if not warnings:
-            warnings.append("No critical air-quality episodes were detected")
+            warnings.append("Критических эпизодов загрязнения не обнаружено")
 
         if trend == "worsening":
             actions = [
-                "Reduce long outdoor activity in the coming hours",
-                "Move ventilation to lower-AQI periods",
+                "Сократите длительную активность на улице в ближайшие часы",
+                "Проветривайте помещение в периоды с более низким AQI",
             ]
         elif trend == "improving":
             actions = [
-                "Short outdoor activities are more feasible now",
-                "Sensitive groups should still keep basic precautions",
+                "Короткие выходы на улицу сейчас допустимее",
+                "Чувствительным группам всё равно стоит соблюдать базовые меры предосторожности",
             ]
         else:
             actions = [
-                "Keep standard precautions for outdoor exposure",
-                "Track updates as weather conditions change",
+                "Соблюдайте стандартные меры предосторожности при выходе на улицу",
+                "Следите за обновлениями по мере изменения погодных условий",
             ]
 
         return DailyDigestResponse(
@@ -288,5 +288,5 @@ class WebAppService:
             trend=trend,
             top_warnings=warnings,
             recommended_actions=actions,
-            summary_text=f"24h digest for {label}: trend={trend}, max_aqi={max_aqi}.",
+            summary_text=f"Дайджест за 24 часа для {label}: тренд — {trend}, максимальный AQI — {max_aqi}.",
         )
