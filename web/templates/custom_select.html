@@ -7,8 +7,8 @@
         <i data-lucide="chevron-down" class="w-4 h-4 transition-transform" id="dropdown-arrow"></i>
     </button>
     
-    <div class="custom-dropdown glass-enhanced rounded-xl mt-2 absolute top-full left-0 right-0 z-50 hidden" id="city-dropdown">
-        <div class="p-2 max-h-64 overflow-y-auto">
+    <div class="custom-dropdown rounded-xl mt-2 absolute top-full left-0 right-0 z-50 hidden" id="city-dropdown">
+        <div class="custom-dropdown-scroll p-2 max-h-64 overflow-y-auto">
             <a href="/" class="dropdown-item block px-3 py-2 rounded-lg hover:bg-white/20 transition-colors text-sm {% if not current_city %}bg-blue-500/30{% endif %}">
                 Выберите город
             </a>
@@ -52,9 +52,20 @@
 .custom-dropdown {
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(51, 65, 85, 0.96) !important;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    background: rgba(51, 65, 85, 0.98) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
+    isolation: isolate;
+    overflow: hidden;
+    transform: translateZ(0);
+}
+
+.custom-dropdown-scroll {
+    background: rgba(51, 65, 85, 0.98);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
 }
 
 .dropdown-item {
@@ -63,7 +74,10 @@
     position: relative;
     z-index: 1;
     text-shadow: none;
-    filter: none;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-clip: padding-box;
 }
 
 .dropdown-item:hover {

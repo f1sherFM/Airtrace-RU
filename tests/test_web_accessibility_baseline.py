@@ -25,3 +25,11 @@ def test_city_template_has_keyboard_toggle_buttons_and_live_regions():
     assert 'aria-pressed="false"' in content
     assert 'aria-live="polite"' in content
     assert 'aria-busy="false"' in content
+
+
+def test_custom_select_dropdown_uses_opaque_non_blurred_panel():
+    content = _read_template("custom_select.html")
+    assert 'class="custom-dropdown rounded-xl' in content
+    assert "custom-dropdown-scroll" in content
+    assert "glass-enhanced rounded-xl" not in content
+    assert "backdrop-filter: none !important;" in content
