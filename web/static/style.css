@@ -89,6 +89,7 @@
     backdrop-filter: blur(8px);
     border: 1px solid rgba(255, 255, 255, 0.2);
     color: white !important;
+    color-scheme: dark;
     border-radius: 12px;
     padding: 8px 12px;
     outline: none;
@@ -112,6 +113,7 @@
     background: #1f2937 !important;
     color: white !important;
     padding: 8px !important;
+    font-weight: 500;
 }
 
 .city-select option:hover {

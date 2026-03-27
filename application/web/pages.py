@@ -15,6 +15,14 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+async def _health_context(service: WebAppService) -> dict[str, Any]:
+    health = await service.check_health()
+    return {
+        "api_status": health.get("status", "degraded"),
+        "api_reachable": bool(health.get("reachable", False)),
+    }
+
+
 def _normalize_pollutants(payload: dict[str, Any]) -> dict[str, Any]:
     pollutants = dict(payload.get("pollutants") or {})
     for key in ("pm2_5", "pm10", "no2", "so2", "o3"):
@@ -84,12 +92,11 @@ def normalize_history_payload(items: list[dict[str, Any]]) -> list[dict[str, Any
 
 
 async def build_index_context(*, request: Any, service: WebAppService) -> dict[str, Any]:
-    health = await service.check_health()
+    health_context = await _health_context(service)
     return {
         "request": request,
         "cities": get_cities_mapping(),
-        "api_status": health.get("status", "degraded"),
-        "api_reachable": bool(health.get("reachable", False)),
+        **health_context,
         "title": "AirTrace RU - Мониторинг качества воздуха",
     }
 
@@ -104,7 +111,7 @@ async def build_city_page_context(
 ) -> dict[str, Any]:
     lat = float(city["lat"])
     lon = float(city["lon"])
-    current_raw, forecast_raw, history_raw, trends_raw = await asyncio.gather(
+    current_raw, forecast_raw, history_raw, trends_raw, health_context = await asyncio.gather(
         service.get_current_data(lat, lon),
         service.get_forecast_data(lat, lon),
         service.get_history_data(
@@ -120,6 +127,7 @@ async def build_city_page_context(
             lon=lon if is_custom else None,
             range_preset="7d",
         ),
+        _health_context(service),
     )
     current = normalize_current_payload(current_raw, lat=lat, lon=lon)
     forecast = normalize_forecast_payload(forecast_raw[:8], lat=lat, lon=lon)
@@ -136,7 +144,7 @@ async def build_city_page_context(
         "trends": trends_raw,
         "trend_summary": (trends_raw or {}).get("summary"),
         "explainability": explainability,
-        "api_status": "healthy",
+        **health_context,
         "title": f"AirTrace RU - {city['name']}",
         "is_custom": is_custom,
     }
@@ -153,14 +161,18 @@ async def build_history_page_context(
 ) -> dict[str, Any]:
     lat = float(city["lat"])
     lon = float(city["lon"])
-    history_raw = await service.get_history_data(
-        city_key="" if is_custom else city_key,
-        lat=lat,
-        lon=lon,
-        range_preset=range_preset,
-        page_size=200,
+    history_raw, current_raw, health_context = await asyncio.gather(
+        service.get_history_data(
+            city_key="" if is_custom else city_key,
+            lat=lat,
+            lon=lon,
+            range_preset=range_preset,
+            page_size=200,
+        ),
+        service.get_current_data(lat, lon),
+        _health_context(service),
     )
-    current = normalize_current_payload(await service.get_current_data(lat, lon), lat=lat, lon=lon)
+    current = normalize_current_payload(current_raw, lat=lat, lon=lon)
     return {
         "request": request,
         "cities": get_cities_mapping(),
@@ -170,7 +182,7 @@ async def build_history_page_context(
         "history_records": normalize_history_payload((history_raw or {}).get("items", [])),
         "explainability": build_explainability(current),
         "title": f"История - {city['name']}",
-        "api_status": "healthy",
+        **health_context,
         "is_custom": is_custom,
     }
 
@@ -186,13 +198,17 @@ async def build_trends_page_context(
 ) -> dict[str, Any]:
     lat = float(city["lat"])
     lon = float(city["lon"])
-    trends = await service.get_trends_data(
-        city_key="" if is_custom else city_key,
-        lat=lat if is_custom else None,
-        lon=lon if is_custom else None,
-        range_preset=range_preset,
+    trends, current_raw, health_context = await asyncio.gather(
+        service.get_trends_data(
+            city_key="" if is_custom else city_key,
+            lat=lat if is_custom else None,
+            lon=lon if is_custom else None,
+            range_preset=range_preset,
+        ),
+        service.get_current_data(lat, lon),
+        _health_context(service),
     )
-    current = normalize_current_payload(await service.get_current_data(lat, lon), lat=lat, lon=lon)
+    current = normalize_current_payload(current_raw, lat=lat, lon=lon)
     return {
         "request": request,
         "cities": get_cities_mapping(),
@@ -202,7 +218,7 @@ async def build_trends_page_context(
         "trend_payload": trends,
         "explainability": build_explainability(current),
         "title": f"Тренды - {city['name']}",
-        "api_status": "healthy",
+        **health_context,
         "is_custom": is_custom,
     }
 
@@ -215,6 +231,7 @@ async def build_compare_page_context(
 ) -> dict[str, Any]:
     cities = get_cities_mapping()
     selected = [key for key in city_keys if key in cities][:3]
+    health_context = await _health_context(service)
     cards: list[dict[str, Any]] = []
     for key in selected:
         city = cities[key]
@@ -238,16 +255,19 @@ async def build_compare_page_context(
         "compare_cards": cards,
         "selected_cities": selected,
         "title": "Сравнение городов",
-        "api_status": "healthy",
+        **health_context,
     }
 
 
 async def build_alerts_page_context(*, request: Any, service: WebAppService) -> dict[str, Any]:
-    subscriptions = await service.list_alert_rules()
+    subscriptions, health_context = await asyncio.gather(
+        service.list_alert_rules(),
+        _health_context(service),
+    )
     return {
         "request": request,
         "cities": get_cities_mapping(),
         "rules": subscriptions,
-        "api_status": "healthy",
+        **health_context,
         "title": "AirTrace RU - Подписки на уведомления",
     }

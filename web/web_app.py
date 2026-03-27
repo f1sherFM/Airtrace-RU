@@ -167,13 +167,15 @@ async def city_data(request: Request, city_key: str):
 
 @app.get("/custom", response_class=UTF8HTMLResponse)
 async def custom_city_form(request: Request):
+    health = await air_service.check_health()
     return templates.TemplateResponse(
         request,
         "custom_city.html",
         {
             "request": request,
             "cities": CITIES,
-            "api_status": "healthy",
+            "api_status": normalize_api_status(health.get("status")),
+            "api_reachable": bool(health.get("reachable", False)),
             "title": "AirTrace RU - Произвольный город",
         },
     )
