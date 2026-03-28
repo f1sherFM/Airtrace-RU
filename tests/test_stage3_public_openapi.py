@@ -39,5 +39,26 @@ def test_public_v2_openapi_artifact_only_contains_v2_paths():
 
 def test_public_v2_openapi_artifact_is_free_from_common_mojibake_markers():
     content = ARTIFACT_PATH.read_text(encoding="utf-8")
-    for marker in ("Ð", "Ñ", "â€™", "â€œ", "â€”", "\ufffd"):
+    for marker in ("Гђ", "Г‘", "Гўв‚¬в„ў", "Гўв‚¬Е“", "Гўв‚¬вЂќ", "\ufffd"):
         assert marker not in content
+
+
+def test_public_v2_openapi_health_schema_includes_public_status():
+    payload = json.loads(ARTIFACT_PATH.read_text(encoding="utf-8"))
+    health_schema = payload["components"]["schemas"]["HealthCheckResponse"]
+    properties = health_schema.get("properties", {})
+    assert "status" in properties
+    assert "public_status" in properties
+    assert "services" in properties
+
+
+def test_public_v2_openapi_alerts_document_auth_and_conflict_responses():
+    payload = json.loads(ARTIFACT_PATH.read_text(encoding="utf-8"))
+    create_alert_responses = payload["paths"]["/v2/alerts"]["post"]["responses"]
+    update_alert_responses = payload["paths"]["/v2/alerts/{subscription_id}"]["patch"]["responses"]
+
+    for responses in (create_alert_responses, update_alert_responses):
+        assert "401" in responses
+        assert "409" in responses
+        assert responses["401"]["content"]["application/json"]["schema"]["$ref"] == "#/components/schemas/ErrorResponse"
+        assert responses["409"]["content"]["application/json"]["schema"]["$ref"] == "#/components/schemas/ErrorResponse"

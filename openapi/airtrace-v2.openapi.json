@@ -722,6 +722,12 @@
           "timestamp": "2024-01-15T12:00:00Z"
         },
         "properties": {
+          "public_status": {
+            "default": "degraded",
+            "description": "Пользовательская доступность сервиса (healthy/degraded/unhealthy)",
+            "title": "Public Status",
+            "type": "string"
+          },
           "services": {
             "additionalProperties": true,
             "title": "Services",
