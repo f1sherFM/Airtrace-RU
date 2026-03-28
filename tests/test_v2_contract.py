@@ -109,6 +109,7 @@ async def test_v2_current_forecast_and_health_include_version_headers_and_metada
     health_payload = health.json()
     assert health.status_code == 200
     assert health_payload["status"] in {"healthy", "degraded", "unhealthy"}
+    assert health_payload["public_status"] in {"healthy", "degraded", "unhealthy"}
 
 
 @pytest.mark.asyncio

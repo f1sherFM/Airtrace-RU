@@ -333,6 +333,10 @@ class HealthCheckResponse(BaseModel):
         ..., 
         description="Общий статус сервиса (healthy/degraded/unhealthy)"
     )
+    public_status: str = Field(
+        default="degraded",
+        description="Пользовательская доступность сервиса (healthy/degraded/unhealthy)"
+    )
     timestamp: datetime = Field(
         default_factory=get_utc_now,
         description="Время проверки"

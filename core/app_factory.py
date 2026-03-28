@@ -296,8 +296,14 @@ def _register_exception_handlers(app: FastAPI) -> None:
     def _status_to_v2_code(status_code: int) -> str:
         if status_code == 400:
             return "VALIDATION_ERROR"
+        if status_code == 401:
+            return "UNAUTHORIZED"
+        if status_code == 403:
+            return "FORBIDDEN"
         if status_code == 404:
             return "NOT_FOUND"
+        if status_code == 409:
+            return "CONFLICT"
         if status_code == 429:
             return "RATE_LIMIT_EXCEEDED"
         if status_code == 503:

@@ -18,7 +18,7 @@ def _utc_now_iso() -> str:
 async def _health_context(service: WebAppService) -> dict[str, Any]:
     health = await service.check_health()
     return {
-        "api_status": health.get("status", "degraded"),
+        "api_status": health.get("public_status", health.get("status", "degraded")),
         "api_reachable": bool(health.get("reachable", False)),
     }
 

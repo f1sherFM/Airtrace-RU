@@ -105,6 +105,25 @@ def _derive_overall_health_status(normalized_services: dict[str, dict[str, Any]]
     return "healthy"
 
 
+def _derive_public_health_status(normalized_services: dict[str, dict[str, Any]]) -> str:
+    core_components = (
+        "api",
+        "external_api",
+        "aqi_calculator",
+        "nmu_detector",
+    )
+    statuses = [
+        _normalize_health_status(normalized_services.get(name, {}).get("status", "degraded"))
+        for name in core_components
+    ]
+
+    if any(status == "unhealthy" for status in statuses):
+        return "unhealthy"
+    if any(status == "degraded" for status in statuses):
+        return "degraded"
+    return "healthy"
+
+
 async def query_health() -> HealthCheckResponse:
     services_status: dict[str, Any] = {}
     overall_status = "healthy"
@@ -233,11 +252,17 @@ async def query_health() -> HealthCheckResponse:
         elif overall_from_components == "degraded" and normalized_overall == "healthy":
             normalized_overall = "degraded"
 
-        return HealthCheckResponse(status=normalized_overall, services=normalized_services)
+        public_status = _derive_public_health_status(normalized_services)
+        return HealthCheckResponse(
+            status=normalized_overall,
+            public_status=public_status,
+            services=normalized_services,
+        )
     except Exception as exc:
         logger.error("Health check failed with unexpected error: %s", exc)
         return HealthCheckResponse(
             status="unhealthy",
+            public_status="unhealthy",
             services={
                 "api": {"status": "healthy", "details": {}},
                 "external_api": {"status": "degraded", "details": {"reason": "unknown"}},

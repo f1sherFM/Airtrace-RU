@@ -144,6 +144,7 @@ async def test_stage0_health_and_v2_health_preserve_basic_shape():
                 assert response.status_code == 200
                 payload = response.json()
                 assert payload["status"] in {"healthy", "degraded", "unhealthy"}
+                assert payload["public_status"] in {"healthy", "degraded", "unhealthy"}
                 assert isinstance(payload["services"], dict)
 
 

@@ -118,7 +118,7 @@ async def test_stage4_v2_alerts_auth_and_validation_errors_use_flat_contract():
             unauthorized = await client.get("/v2/alerts")
             assert unauthorized.status_code == 401
             unauthorized_payload = unauthorized.json()
-            assert "code" in unauthorized_payload
+            assert unauthorized_payload["code"] == "UNAUTHORIZED"
             assert "message" in unauthorized_payload
             assert "timestamp" in unauthorized_payload
 
@@ -162,4 +162,4 @@ async def test_stage4_v2_alerts_auth_and_validation_errors_use_flat_contract():
             )
             assert create.status_code == 201
             assert conflict.status_code == 409
-            assert conflict.json()["code"] == "VALIDATION_ERROR"
+            assert conflict.json()["code"] == "CONFLICT"

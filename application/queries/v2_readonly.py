@@ -36,6 +36,28 @@ V2_RESPONSE_HEADERS = {
 }
 
 
+def _resolve_v2_locator(
+    *,
+    city: Optional[str],
+    lat: Optional[float],
+    lon: Optional[float],
+) -> tuple[Optional[str], Optional[float], Optional[float]]:
+    normalized_city = (city or "").strip().lower() or None
+    has_city = normalized_city is not None
+    has_lat = lat is not None
+    has_lon = lon is not None
+
+    if has_lat != has_lon:
+        raise HTTPException(status_code=400, detail="Parameters lat and lon must be provided together")
+    if has_city and has_lat:
+        raise HTTPException(status_code=400, detail="Provide either city or lat/lon, not both")
+    if not has_city and not has_lat:
+        raise HTTPException(status_code=400, detail="Provide city or lat/lon")
+    if has_city and normalized_city not in get_cities_mapping():
+        raise HTTPException(status_code=404, detail="Configured city not found")
+    return normalized_city, lat, lon
+
+
 async def query_current_air_quality_v2(*, lat: float, lon: float) -> AirQualityData:
     return await query_current_air_quality_shared(lat=lat, lon=lon)
 
@@ -54,6 +76,7 @@ async def query_history_v2(
     lat: Optional[float],
     lon: Optional[float],
 ) -> HistoryQueryResponse:
+    city, lat, lon = _resolve_v2_locator(city=city, lat=lat, lon=lon)
     return await query_history_shared(
         range_value=range_value,
         page=page,
@@ -170,10 +193,7 @@ async def query_trends_v2(
     lat: Optional[float],
     lon: Optional[float],
 ) -> HistoryTrendResponse:
-    if (lat is None) != (lon is None):
-        raise HTTPException(status_code=400, detail="Параметры lat и lon должны передаваться вместе")
-    if city is None and lat is None and lon is None:
-        raise HTTPException(status_code=400, detail="Передайте city или lat/lon для получения трендов")
+    city, lat, lon = _resolve_v2_locator(city=city, lat=lat, lon=lon)
 
     now = datetime.now(timezone.utc)
     start_utc = now - _resolve_trend_delta(range_value)

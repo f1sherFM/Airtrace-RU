@@ -350,3 +350,61 @@ async def test_stage5_api_status_badge_is_consistent_across_pages():
     for response in responses:
         assert response.status_code == 200
         assert "API с ограничениями" in response.text
+
+
+@pytest.mark.asyncio
+async def test_stage5_api_status_badge_prefers_public_status_over_engineering_status():
+    original_current = web_app.air_service.get_current_data
+    original_forecast = web_app.air_service.get_forecast_data
+    original_history = web_app.air_service.get_history_data
+    original_trends = web_app.air_service.get_trends_data
+    original_alerts = web_app.air_service.list_alert_rules
+    original_health = web_app.air_service.check_health
+
+    async def _fake_current(lat: float, lon: float):
+        return _current_payload(lat, lon)
+
+    async def _fake_forecast(lat: float, lon: float, hours: int = 24):
+        return [_current_payload(lat, lon, source="forecast")]
+
+    async def _fake_history(**kwargs):
+        return _history_payload()
+
+    async def _fake_trends(**kwargs):
+        return _trends_payload()
+
+    async def _fake_alerts():
+        return []
+
+    async def _fake_health():
+        return {"status": "degraded", "public_status": "healthy", "reachable": True}
+
+    web_app.air_service.get_current_data = _fake_current
+    web_app.air_service.get_forecast_data = _fake_forecast
+    web_app.air_service.get_history_data = _fake_history
+    web_app.air_service.get_trends_data = _fake_trends
+    web_app.air_service.list_alert_rules = _fake_alerts
+    web_app.air_service.check_health = _fake_health
+    try:
+        transport = httpx.ASGITransport(app=web_app.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            responses = [
+                await client.get("/"),
+                await client.get("/city/moscow"),
+                await client.get("/history/moscow"),
+                await client.get("/trends/moscow"),
+                await client.get("/compare?cities=moscow,spb"),
+                await client.get("/alerts/settings"),
+                await client.get("/custom"),
+            ]
+    finally:
+        web_app.air_service.get_current_data = original_current
+        web_app.air_service.get_forecast_data = original_forecast
+        web_app.air_service.get_history_data = original_history
+        web_app.air_service.get_trends_data = original_trends
+        web_app.air_service.list_alert_rules = original_alerts
+        web_app.air_service.check_health = original_health
+
+    for response in responses:
+        assert response.status_code == 200
+        assert "API работает" in response.text

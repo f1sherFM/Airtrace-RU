@@ -174,7 +174,7 @@ async def custom_city_form(request: Request):
         {
             "request": request,
             "cities": CITIES,
-            "api_status": normalize_api_status(health.get("status")),
+            "api_status": normalize_api_status(health.get("public_status", health.get("status"))),
             "api_reachable": bool(health.get("reachable", False)),
             "title": "AirTrace RU - Произвольный город",
         },
@@ -403,11 +403,13 @@ async def alert_settings_delete(rule_id: str):
 async def api_health():
     backend_health = await air_service.check_health()
     backend_status = normalize_api_status(backend_health.get("status"))
+    public_status = normalize_api_status(backend_health.get("public_status", backend_health.get("status")))
     reachable = bool(backend_health.get("reachable", False))
     return {
-        "status": backend_status if reachable else "unhealthy",
+        "status": public_status if reachable else "unhealthy",
         "timestamp": datetime.now().isoformat(),
         "backend_api": backend_status,
+        "public_status": public_status,
         "backend_reachable": reachable,
         "cities_available": len(CITIES),
     }
