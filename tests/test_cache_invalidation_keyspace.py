@@ -1,6 +1,7 @@
 import pytest
 
 from cache import CacheLevel, MultiLevelCacheManager
+from privacy_compliance_validator import validate_cache_key_privacy
 from unified_weather_service import UnifiedWeatherService
 
 
@@ -47,3 +48,19 @@ async def test_unified_weather_service_uses_coordinate_invalidation_api(monkeypa
     assert calls["levels"] == [CacheLevel.L1, CacheLevel.L2]
 
     await service.cleanup()
+
+
+def test_unified_weather_service_combined_cache_key_is_privacy_safe(caplog):
+    service = UnifiedWeatherService()
+
+    with caplog.at_level("WARNING"):
+        cache_key = service._generate_combined_cache_key(55.7558, 37.6176)
+
+    assert cache_key.startswith("combined:")
+    assert "55.7558" not in cache_key
+    assert "37.6176" not in cache_key
+    assert validate_cache_key_privacy(
+        cache_key,
+        "tests.test_unified_weather_service_combined_cache_key_is_privacy_safe",
+    )
+    assert "Combined cache key privacy validation failed" not in caplog.text

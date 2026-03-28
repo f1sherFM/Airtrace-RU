@@ -23,7 +23,7 @@ from services import AirQualityService
 from weather_api_manager import weather_api_manager
 from cache import MultiLevelCacheManager, CacheLevel
 from config import config
-from privacy_compliance_validator import validate_cache_key_privacy, validate_metrics_privacy
+from privacy_compliance_validator import validate_metrics_privacy
 
 logger = logging.getLogger(__name__)
 
@@ -52,17 +52,9 @@ class UnifiedWeatherService:
         self.weather_api_failures = 0
         
     def _generate_combined_cache_key(self, lat: float, lon: float) -> str:
-        """Generate cache key for combined weather data"""
-        # Use higher precision for combined data to avoid conflicts
-        rounded_lat = round(lat, 4)
-        rounded_lon = round(lon, 4)
-        cache_key = f"combined:{rounded_lat}:{rounded_lon}"
-        
-        # Validate cache key privacy compliance
-        if not validate_cache_key_privacy(cache_key, "UnifiedWeatherService._generate_combined_cache_key"):
-            logger.warning(f"Combined cache key privacy validation failed for key: {cache_key[:20]}...")
-        
-        return cache_key
+        """Generate a privacy-safe namespace key for combined weather data."""
+        base_key = self.cache_manager._generate_key(lat, lon)
+        return f"combined:{base_key}"
 
     def set_current_persistence_callback(
         self,
