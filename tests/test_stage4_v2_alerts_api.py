@@ -163,3 +163,28 @@ async def test_stage4_v2_alerts_auth_and_validation_errors_use_flat_contract():
             assert create.status_code == 201
             assert conflict.status_code == 409
             assert conflict.json()["code"] == "CONFLICT"
+
+
+@pytest.mark.asyncio
+async def test_stage4_v2_alerts_invalid_key_and_missing_auth_config_use_flat_contract():
+    with _patched_alert_service(), patch.dict("os.environ", {"ALERTS_API_KEY": "test-alert-key", "ALERTS_API_KEYS": ""}, clear=False):
+        transport = httpx.ASGITransport(app=main.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            invalid_key = await client.get("/v2/alerts", headers={"X-API-Key": "wrong-key"})
+
+        assert invalid_key.status_code == 401
+        payload = invalid_key.json()
+        assert payload["code"] == "UNAUTHORIZED"
+        assert "message" in payload
+        assert "timestamp" in payload
+
+    with _patched_alert_service(), patch.dict("os.environ", {"ALERTS_API_KEY": "", "ALERTS_API_KEYS": ""}, clear=False):
+        transport = httpx.ASGITransport(app=main.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            unconfigured = await client.get("/v2/alerts", headers={"X-API-Key": "anything"})
+
+        assert unconfigured.status_code == 503
+        payload = unconfigured.json()
+        assert payload["code"] == "SERVICE_UNAVAILABLE"
+        assert "message" in payload
+        assert "timestamp" in payload

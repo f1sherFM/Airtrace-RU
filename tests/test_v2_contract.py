@@ -177,6 +177,7 @@ async def test_v2_error_contract_for_validation_and_service_unavailable():
     transport = httpx.ASGITransport(app=main.app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         validation = await client.get("/v2/current?lat=999&lon=37.6176")
+        missing = await client.get("/v2/current?lat=55.7558")
 
     assert validation.status_code == 422
     validation_payload = validation.json()
@@ -184,6 +185,11 @@ async def test_v2_error_contract_for_validation_and_service_unavailable():
     assert "message" in validation_payload
     assert "details" in validation_payload
     assert "timestamp" in validation_payload
+
+    assert missing.status_code == 422
+    missing_payload = missing.json()
+    assert missing_payload["code"] == "VALIDATION_ERROR"
+    assert "details" in missing_payload
 
     with patch.object(main.unified_weather_service, "get_current_combined_data", AsyncMock(side_effect=ConnectionError("boom"))), patch(
         "application.queries.readonly.get_graceful_degradation_manager"
@@ -200,6 +206,25 @@ async def test_v2_error_contract_for_validation_and_service_unavailable():
     assert unavailable_payload["code"] == "SERVICE_UNAVAILABLE"
     assert "message" in unavailable_payload
     assert "timestamp" in unavailable_payload
+
+
+@pytest.mark.asyncio
+async def test_v2_forecast_service_unavailable_uses_flat_error_contract():
+    with patch.object(main.unified_weather_service, "get_forecast_combined_data", AsyncMock(side_effect=ConnectionError("boom"))), patch(
+        "application.queries.readonly.get_graceful_degradation_manager"
+    ) as degradation_mock:
+        degradation_mock.return_value.get_stale_data = AsyncMock(return_value=None)
+        degradation_mock.return_value.should_prioritize_core_functionality = AsyncMock(return_value=False)
+        degradation_mock.return_value.get_cached_response_for_rate_limiting = AsyncMock(return_value=None)
+        transport = httpx.ASGITransport(app=main.app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            unavailable = await client.get("/v2/forecast?lat=55.7558&lon=37.6176")
+
+    assert unavailable.status_code == 503
+    payload = unavailable.json()
+    assert payload["code"] == "SERVICE_UNAVAILABLE"
+    assert "message" in payload
+    assert "timestamp" in payload
 
 
 def test_v2_rate_limit_response_uses_flat_error_contract():
