@@ -37,7 +37,7 @@ from privacy_compliance_validator import validate_cache_key_privacy, validate_me
 logger = logging.getLogger(__name__)
 
 
-def json_dumps(obj: Any) -> str:
+def json_dumps(obj: Any, default=str, **kwargs: Any) -> str:
     """
     ✅ FIX #7: Fast JSON serialization using orjson if available
     
@@ -45,10 +45,10 @@ def json_dumps(obj: Any) -> str:
     """
     if HAS_ORJSON:
         # orjson returns bytes, decode to str
-        return orjson.dumps(obj, default=str).decode('utf-8')
+        return orjson.dumps(obj, default=default, **kwargs).decode('utf-8')
     else:
         import json as stdlib_json
-        return stdlib_json.dumps(obj, default=str)
+        return stdlib_json.dumps(obj, default=default, **kwargs)
 
 
 def json_loads(data: Union[str, bytes]) -> Any:

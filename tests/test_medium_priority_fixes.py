@@ -314,6 +314,17 @@ class TestJSONOptimization:
         assert isinstance(result, str)
         assert "timestamp" in result
 
+    def test_json_dumps_accepts_explicit_default_kwarg(self):
+        """Test json_dumps compatibility with callers that pass default explicitly."""
+        from cache import json_dumps
+        from datetime import datetime
+
+        data = {"timestamp": datetime(2026, 1, 1, 12, 0, 0)}
+        result = json_dumps(data, default=str)
+
+        assert isinstance(result, str)
+        assert "2026-01-01" in result
+
 
 # Test Fix #8: IP Rate Limiting
 class TestIPRateLimiting:
