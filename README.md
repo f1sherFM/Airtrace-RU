@@ -1,607 +1,174 @@
-# 🌬️ AirTrace RU — Мониторинг качества воздуха
+# AirTrace v2
 
-**Privacy-first система мониторинга качества воздуха для российских городов с высокопроизводительной архитектурой**
+`airtrace-v2` is the active integration branch for the new AirTrace core.
 
-![AirTrace RU](https://img.shields.io/badge/AirTrace-RU-blue?style=for-the-badge)
-![Python](https://img.shields.io/badge/Python-3.8%2B-green?style=for-the-badge)
-![FastAPI](https://img.shields.io/badge/FastAPI-Latest-red?style=for-the-badge)
-![Status](https://img.shields.io/badge/Status-Production%20Ready-brightgreen?style=for-the-badge)
-![Performance](https://img.shields.io/badge/Performance-Optimized-orange?style=for-the-badge)
+This branch already includes:
+- stable readonly `v2` API
+- historical storage foundation
+- trends and explainability
+- DB-backed alerts write-paths
+- gradual Python SSR migration onto the new application layer
 
-## 🎯 О проекте
+The goal of `v2` is to move AirTrace from a large legacy app to a cleaner modular core without a big bang rewrite.
 
-AirTrace RU — это современная высокопроизводительная система мониторинга качества воздуха, разработанная специально для российских городов. Система использует российские стандарты ПДК, определяет риски НМУ и режимы "Черное небо", обеспечивая при этом полную приватность пользователей и масштабируемость под высокие нагрузки.
+## Status
 
-### ✨ Ключевые особенности
+- Branch: `airtrace-v2`
+- API model: `v1` legacy adapter + stable public `v2`
+- Web model: Python SSR on top of the application layer
+- Storage: repository-backed history and alerts foundation
+- Migration style: staged rollout with regression gates
 
-#### 🏛️ Основные возможности
-- 🇷🇺 **Российские стандарты ПДК** — расчет AQI по нормативам РФ
-- 🔒 **Privacy-first архитектура** — координаты не сохраняются
-- 🌪️ **НМУ мониторинг** — определение "Черного неба"
-- 🌐 **Современный веб-интерфейс** — красивый и функциональный UI
-- 📍 **Гибкий ввод координат** — поддержка DMS, десятичных и текстового формата
-- 📊 **Экспорт данных** — CSV и JSON для анализа в Excel, Python, R
+Completed stages in this branch:
+- Stage 0: baseline and safety net
+- Stage 1: core refactor
+- Stage 2: data layer and history foundation
+- Stage 3: stable readonly `v2`
+- Stage 4: alerts write-paths
+- Stage 4 hardening: alert worker and alert-specific rate limiting
+- Stage 5: SSR UX migration
 
-#### ⚡ Производительность и масштабируемость
-- 🚀 **Многоуровневое кэширование** — L1 (память), L2 (Redis), L3 (диск)
-- 🛡️ **Интеллектуальное ограничение запросов** — защита от перегрузок
-- 🔄 **Пулы соединений** — оптимизированные запросы к внешним API
-- 📈 **Мониторинг производительности** — метрики в реальном времени
-- 🎯 **Оптимизация запросов** — батчинг и дедупликация
-- 💾 **Управление ресурсами** — контроль CPU и памяти
-- 🔧 **Graceful degradation** — работа при отказе компонентов
-- 📊 **Prometheus метрики** — интеграция с системами мониторинга
+## What Is In v2
 
-#### 🔐 Безопасность и надежность
-- 🛡️ **Защита от DDoS** — rate limiting с burst handling
-- 🔒 **Анонимизация метрик** — никаких персональных данных
-- 🏥 **Health checks** — мониторинг состояния всех компонентов
-- 📋 **Аудит конфигурации** — отслеживание изменений настроек
-- 🔄 **Circuit breakers** — защита от каскадных отказов
+### API
 
-## 🚀 Быстрый старт
+- `GET /v2/current`
+- `GET /v2/forecast`
+- `GET /v2/history`
+- `GET /v2/trends`
+- `GET /v2/health`
+- `POST /v2/alerts`
+- `GET /v2/alerts`
+- `GET /v2/alerts/{id}`
+- `PATCH /v2/alerts/{id}`
+- `DELETE /v2/alerts/{id}`
 
-### Локальная разработка
+### Web
 
-#### Требования
-- Python 3.8+
-- pip или poetry
-- Redis (опционально, для кэширования L2)
+- city pages rendered through `application/web`
+- history and trends pages
+- compare cities UI
+- alerts settings and subscription flows
+- explainability block with source, freshness, and confidence
 
-#### Установка и запуск
+### Platform
 
-```bash
-# 1. Клонирование репозитория
-git clone https://github.com/f1sherFM/Airtrace-RU.git
-cd Airtrace-RU
+- centralized city config in `config/cities.yaml`
+- shared application layer for API and SSR
+- Alembic migration chain
+- SQLAlchemy-backed repositories
+- privacy-safe cache keying
+- Redis-backed cache path
+- alert evaluation worker inside app lifespan
 
-# 2. Установка зависимостей
+## Quick Start
+
+### Requirements
+
+- Python 3.10+
+- `pip`
+- Redis on `localhost:6379` for full local cache behavior
+- optional PostgreSQL for DB-backed flows
+
+### Install
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+```
 
-# 3. Запуск приложения (API + Web интерфейс)
+### Run Full App
+
+```powershell
 python start_app.py
-
-# Приложение будет доступно по адресам:
-# API: http://localhost:8000
-# Web UI: http://localhost:3000
 ```
 
-### 🖥️ Production запуск (базовый)
+After startup:
+- API: [http://localhost:8000](http://localhost:8000)
+- Web: [http://localhost:3000](http://localhost:3000)
+- Swagger: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-В репозитории нет готовых скриптов `deploy.sh`/`Makefile`. Базовый вариант:
+### Run Separately
 
-```bash
-# API
-uvicorn main:app --host 0.0.0.0 --port 8000
+API:
 
-# Web (в отдельном процессе)
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn main:app --host 127.0.0.1 --port 8000
+```
+
+Web:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
 cd web
 python web_app.py
 ```
 
-Для production рекомендуется запуск через process manager (systemd/supervisor) и reverse proxy (например, Nginx).
+### Redis
 
-### Конфигурация производительности
+If Redis is not already running locally:
 
-```bash
-# Опционально: запуск Redis для L2 кэширования
-docker run -d -p 6379:6379 redis:alpine
-
-# Настройка переменных окружения (опционально)
-export REDIS_URL="redis://localhost:6379"
-export CACHE_TTL="300"
-export RATE_LIMIT_ENABLED="true"
-export MONITORING_ENABLED="true"
+```powershell
+docker run -d --name airtrace-redis -p 6379:6379 redis:7-alpine
 ```
 
-### Альтернативный запуск
+## Key Docs
 
-```bash
-# Только API сервер
-uvicorn main:app --reload --port 8000
+- Roadmap: [docs/airtrace_v2_roadmap.md](docs/airtrace_v2_roadmap.md)
+- Public API guide: [docs/public_api_v2.md](docs/public_api_v2.md)
+- API compatibility notes: [docs/api_v2_compatibility.md](docs/api_v2_compatibility.md)
+- Stage 0 protected surfaces: [docs/stage0_protected_surfaces.md](docs/stage0_protected_surfaces.md)
+- Health probes: [docs/health_probes.md](docs/health_probes.md)
+- Runtime SLO: [docs/slo_runtime_control.md](docs/slo_runtime_control.md)
 
-# Только веб-интерфейс (в новом терминале)
-cd web
-python web_app.py
+## Public OpenAPI
+
+- Public artifact: [openapi/airtrace-v2.openapi.json](openapi/airtrace-v2.openapi.json)
+
+The committed artifact is the source for:
+- contract snapshot tests
+- in-repo SDK generation
+- public `v2` integration docs
+
+## Project Structure
+
+```text
+core/              app factory, lifecycle, settings
+api/v1/            legacy adapter
+api/v2/            public v2 API
+application/       query services, use cases, web layer
+domain/            AQI, NMU, confidence, pollutants
+infrastructure/    DB, repositories, cache, providers
+config/            cities.yaml and runtime config
+web/               Python SSR app, templates, static assets
+docs/              roadmap, ADRs, API and ops docs
+tests/             regression, contract, SSR, migration gates
 ```
 
-## 📊 Использование API
+## Testing
 
-### Текущее качество воздуха
-```bash
-curl "http://localhost:8000/weather/current?lat=53.4069&lon=58.9794"
+Focused examples:
+
+```powershell
+.\.venv\Scripts\python -m pytest tests\test_v2_contract.py -q
+.\.venv\Scripts\python -m pytest tests\test_stage5_ssr_rendering.py -q
 ```
 
-**Ответ:**
-```json
-{
-  "timestamp": "2026-01-17T13:09:01.122462+00:00",
-  "location": {"latitude": 53.4069, "longitude": 58.9794},
-  "aqi": {
-    "value": 40,
-    "category": "Хорошее",
-    "color": "#00E400",
-    "description": "Качество воздуха считается удовлетворительным..."
-  },
-  "pollutants": {
-    "pm2_5": 12.1, "pm10": 12.8, "no2": 31.6, 
-    "so2": 3.1, "o3": 49.0
-  },
-  "recommendations": "Отличное качество воздуха...",
-  "nmu_risk": "low",
-  "health_warnings": [],
-  "data_source": "live",
-  "freshness": "fresh",
-  "confidence": 0.9,
-  "metadata": {
-    "data_source": "live",
-    "freshness": "fresh",
-    "confidence": 0.9,
-    "confidence_explanation": "confidence derived from source=live, source_available, cache_age=0s, no_fallback",
-    "fallback_used": false,
-    "cache_age_seconds": 0
-  }
-}
-```
+Full regression is intentionally broader because this branch protects staged migration behavior across API, data layer, alerts, and SSR.
 
-### Прогноз на 24 часа
-```bash
-curl "http://localhost:8000/weather/forecast?lat=53.4069&lon=58.9794"
-```
+## Branch Notes
 
-### Проверка здоровья сервиса
-```bash
-curl "http://localhost:8000/health"
-```
+- `main` remains the stable production branch
+- `airtrace-v2` is the integration branch for the new architecture
+- root `README.md` in this branch is intentionally `v2`-first
+- legacy context should be taken from branch history and staged docs, not from the old root README
 
-### API v2 и совместимость
-```bash
-curl "http://localhost:8000/v2/current?lat=53.4069&lon=58.9794"
-curl "http://localhost:8000/v2/forecast?lat=53.4069&lon=58.9794"
-curl "http://localhost:8000/v2/history?range=24h&page=1&page_size=50&city=moscow"
-curl "http://localhost:8000/v2/health"
-```
+## Next Direction
 
-- `v1` и `v2` маршруты работают параллельно для backward compatibility.
-- Для новых интеграций используйте `/v2/*`.
-- Матрица совместимости и deprecation notes: `docs/api_v2_compatibility.md`.
-- Публичный v2 integration guide с проверенными `curl`: `docs/public_api_v2.md`.
-- UX smoke checklist для дашборда Now/Forecast/History: `docs/ux_smoke_checklist.md`.
-- A11y baseline checklist: `docs/accessibility_baseline.md`.
-- Unified HTTP transport policy: `docs/http_transport_policy.md`.
-- Health/readiness/liveness probes: `docs/health_probes.md`.
-- Runtime SLO and dashboard assets: `docs/slo_runtime_control.md`, `observability/grafana/airtrace_runtime_overview.json`.
-- Load/soak suite: `tools/load/run_load_suite.py`, `docs/load_soak_testing.md`.
-
-### Мониторинг производительности
-```bash
-# Метрики системы
-curl "http://localhost:8000/metrics"
-
-# Prometheus метрики
-curl "http://localhost:8000/metrics/prometheus"
-
-# Комплексные метрики
-curl "http://localhost:8000/metrics/comprehensive"
-
-# Статус системы
-curl "http://localhost:8000/system-status"
-
-# Соблюдение приватности
-curl "http://localhost:8000/privacy-compliance"
-```
-
-## 📊 Экспорт данных
-
-### Экспорт для предустановленных городов
-```bash
-# CSV формат (почасовой прогноз, 24 часа)
-curl "http://localhost:3000/export/magnitogorsk?format=csv&hours=24" -o data.csv
-
-# JSON формат (почасовой прогноз, 48 часов)
-curl "http://localhost:3000/export/moscow?format=json&hours=48" -o data.json
-```
-
-### Экспорт для произвольных координат
-```bash
-# Экспорт прогноза для Владивостока
-curl "http://localhost:3000/export-custom?lat=43.1056&lon=131.8735&city_name=Владивосток&format=csv&hours=72" -o vladivostok.csv
-```
-
-### Структура экспортированных данных
-
-**CSV/JSON содержит:**
-- `timestamp` — временная метка (ISO 8601)
-- `city` — название города
-- `latitude`, `longitude` — координаты
-- `aqi_value` — значение AQI
-- `aqi_category` — категория качества воздуха
-- `pm2_5`, `pm10`, `no2`, `so2`, `o3` — концентрации загрязнителей (мкг/м³)
-- `nmu_risk` — уровень НМУ риска
-
-## ⚠️ Текущие ограничения
-
-- Веб-эндпоинты таймсерий и экспорт (`/api/timeseries*`, `/export*`) отдают почасовой прогноз, а не исторический архив наблюдений.
-- Горизонт данных ограничен фактически доступным прогнозом внешнего API.
-- Отдельного встроенного хранилища долгой истории измерений в этой версии нет.
-
-**Пример CSV:**
-```csv
-timestamp,city,latitude,longitude,aqi_value,aqi_category,pm2_5,pm10,no2,so2,o3,nmu_risk
-2026-01-19T09:00:00,Магнитогорск,53.4069,58.9794,42,Хорошее,8.1,11.2,15.3,2.1,45.7,low
-```
-
-## 📍 Ввод координат
-
-### Поддерживаемые форматы
-
-AirTrace RU поддерживает множество форматов ввода координат для максимального удобства:
-
-#### 1. Десятичные градусы
-```
-61.25, 73.4333
-```
-
-#### 2. Градусы-минуты-секунды (DMS)
-```
-61°15′00″ с. ш., 73°26′00″ в. д.
-61°15'00" N, 73°26'00" E
-61 15 00 N 73 26 00 E
-```
-
-#### 3. Текстовый ввод
-Просто скопируйте координаты из любого источника:
-- Из Википедии: `61°15′00″ с. ш., 73°26′00″ в. д.`
-- Из Google Maps: `61.25, 73.4333`
-- Из Яндекс.Карт: `61°15'N 73°26'E`
-
-### Веб-интерфейс
-
-Веб-интерфейс предоставляет три удобных способа ввода:
-
-1. **Десятичные поля** — для точного ввода чисел
-2. **DMS поля** — раздельные поля для градусов, минут, секунд
-3. **Текстовый ввод** — умный парсер распознает любой формат
-
-## 🏙️ Поддерживаемые города
-
-| Город | Координаты | Пример |
-|-------|------------|--------|
-| **Москва** | 55.7558, 37.6176 | `?lat=55.7558&lon=37.6176` |
-| **Санкт-Петербург** | 59.9311, 30.3609 | `?lat=59.9311&lon=30.3609` |
-| **Магнитогорск** | 53.4069, 58.9794 | `?lat=53.4069&lon=58.9794` |
-| **Екатеринбург** | 56.8431, 60.6454 | `?lat=56.8431&lon=60.6454` |
-| **Новосибирск** | 55.0084, 82.9357 | `?lat=55.0084&lon=82.9357` |
-| **Челябинск** | 55.1644, 61.4368 | `?lat=55.1644&lon=61.4368` |
-
-## 📈 Индекс качества воздуха (AQI)
-
-### Российская шкала ПДК
-- 🟢 **0-50**: Хорошее — безопасно для всех
-- 🟡 **51-100**: Умеренное — приемлемо для большинства
-- 🟠 **101-150**: Вредно для чувствительных групп
-- 🔴 **151-200**: Вредно для всех
-- 🟣 **201-300**: Очень вредно — чрезвычайные условия
-- ⚫ **301-500**: Опасно — критическая ситуация
-
-### НМУ и "Черное небо"
-- **Низкий риск**: Обычные условия
-- **Умеренный**: Следите за изменениями
-- **Высокий**: Возможны НМУ
-- **Критический**: Режим "Черное небо" активен!
-
-## 🛠️ Архитектура
-
-### Высокопроизводительная архитектура
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Load Balancer │────│  AirTrace API   │────│  External APIs  │
-│                 │    │   Instances     │    │  (Open-Meteo,   │
-└─────────────────┘    └─────────────────┘    │   WeatherAPI)   │
-                                │              └─────────────────┘
-                                │
-                       ┌─────────────────┐
-                       │ Performance     │
-                       │ Components      │
-                       └─────────────────┘
-                                │
-        ┌───────────────────────┼───────────────────────┐
-        │                       │                       │
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ Multi-Level     │    │ Rate Limiting   │    │ Connection      │
-│ Cache           │    │ & Monitoring    │    │ Pooling         │
-│ L1→L2→L3        │    │                 │    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-        │                       │                       │
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ Redis Cluster   │    │ Prometheus      │    │ Circuit         │
-│ (L2 Cache)      │    │ Metrics         │    │ Breakers        │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-### Backend (FastAPI)
-```
-├── main.py                      # FastAPI приложение с middleware
-├── services.py                  # Интеграция с внешними API
-├── utils.py                     # AQI калькулятор и НМУ детектор
-├── schemas.py                   # Pydantic модели
-├── middleware.py                # Privacy middleware
-├── start_app.py                 # Единый запуск API + Web
-│
-├── Performance Components:
-├── cache.py                     # Многоуровневое кэширование
-├── rate_limiter.py             # Интеллектуальное ограничение запросов
-├── rate_limit_middleware.py    # Rate limiting middleware
-├── rate_limit_monitoring.py    # Мониторинг rate limiting
-├── connection_pool.py          # Пулы соединений с внешними API
-├── performance_monitor.py      # Мониторинг производительности
-├── prometheus_exporter.py      # Экспорт метрик в Prometheus
-├── request_optimizer.py        # Оптимизация запросов
-├── resource_manager.py         # Управление ресурсами
-├── system_monitor.py           # Системный мониторинг
-├── graceful_degradation.py     # Graceful degradation
-├── weather_api_manager.py      # Менеджер WeatherAPI
-├── unified_weather_service.py  # Унифицированный сервис погоды
-├── privacy_compliance_validator.py # Валидатор приватности
-├── config_audit_manager.py     # Аудит конфигурации
-│
-└── tests/                       # Comprehensive test suite
-    ├── test_basic.py           # Базовые тесты
-    ├── test_integration.py     # Интеграционные тесты
-    ├── test_performance_*.py   # Тесты производительности
-    └── test_property_*.py      # Property-based тесты
-```
-
-### Frontend (Python + FastAPI)
-```
-web/
-├── web_app.py           # FastAPI веб-приложение
-├── templates/           # Jinja2 шаблоны
-│   ├── base.html        # Базовый шаблон
-│   ├── index.html       # Главная страница
-│   ├── city.html        # Страница города
-│   ├── custom_city.html # Ввод произвольных координат
-│   └── error.html       # Страница ошибки
-├── static/              # Статические файлы
-│   └── style.css        # CSS стили
-└── README.md            # Документация веб-интерфейса
-```
-
-## 🧪 Тестирование
-
-### Запуск тестов
-```bash
-# Все тесты
-pytest tests/ -v
-
-# Только unit тесты
-pytest tests/test_basic.py tests/test_unit_*.py -v
-
-# Только property-based тесты (с предупреждением о длительности)
-pytest tests/test_property_*.py -v
-
-# Интеграционные тесты
-pytest tests/test_integration.py -v
-
-# Тесты производительности
-pytest tests/test_performance_*.py -v
-
-# Тесты с покрытием кода
-pytest tests/ --cov=. --cov-report=html
-```
-
-### Покрытие тестами
-- ✅ **200+ тестов** — comprehensive test suite
-- ✅ **Property-based testing** — Hypothesis для edge cases
-- ✅ **Unit тесты** — каждый компонент покрыт
-- ✅ **Интеграционные тесты** — end-to-end сценарии
-- ✅ **API тесты** — все эндпоинты проверены
-- ✅ **Performance тесты** — валидация оптимизаций
-- ✅ **Load тесты** — тестирование под нагрузкой
-
-### Property-Based Testing
-Система использует Hypothesis для генерации тестовых данных и проверки универсальных свойств:
-
-- **Cache Operation Consistency** — согласованность кэша
-- **Rate Limiting Accuracy** — точность ограничения запросов
-- **Connection Pool Management** — управление пулами соединений
-- **Performance Monitoring Accuracy** — точность мониторинга
-- **Privacy Compliance Preservation** — соблюдение приватности
-- **Graceful Degradation Resilience** — устойчивость к отказам
-
-## 🌐 Веб-интерфейс
-
-### Возможности
-- 🎨 **Современный дизайн** — glass-morphism стиль
-- 📱 **Адаптивная верстка** — работает на всех устройствах
-- 🔄 **Автообновление** — данные обновляются по запросу
-- 🎯 **Интерактивность** — выбор города, прогноз, детали
-- 🌈 **Цветовая индикация** — фон меняется по уровню AQI
-- 📍 **Гибкий ввод координат** — три способа ввода координат
-- 🤖 **Умный парсер** — автоматическое распознавание форматов
-- 📊 **Экспорт данных** — скачивание почасового прогноза в CSV и JSON
-- 📈 **Таймсерии прогноза** — просмотр динамики на 24/48/72/168 часов
-
-### Технологии
-- **Python + FastAPI** — серверный рендеринг
-- **Jinja2 Templates** — шаблонизация
-- **Tailwind CSS** — utility-first стили
-- **Lucide Icons** — красивые иконки
-- **Vanilla JavaScript** — клиентская логика
-
-## 📊 Мониторинг и метрики
-
-### Health Check
-```json
-{
-  "status": "healthy",
-  "timestamp": "2026-01-22T14:12:54.092409+00:00",
-  "services": {
-    "api": "healthy",
-    "external_api": "healthy", 
-    "cache": "L1:enabled L2:healthy L3:enabled (15 entries)",
-    "aqi_calculator": "healthy",
-    "privacy_middleware": "healthy",
-    "nmu_detector": "healthy",
-    "rate_limiting": "healthy",
-    "connection_pools": "healthy",
-    "graceful_degradation": "healthy",
-    "performance_monitoring": "active"
-  }
-}
-```
-
-### Производительные метрики
-```json
-{
-  "performance": {
-    "avg_response_time": 2.1,
-    "p95_response_time": 8.5,
-    "cache_hit_rate": 0.85,
-    "external_api_success_rate": 0.99,
-    "active_connections": 12,
-    "queued_requests": 0
-  },
-  "cache": {
-    "L1": {"hit_rate": 0.75, "memory_usage": "15MB"},
-    "L2": {"hit_rate": 0.90, "redis_healthy": true},
-    "L3": {"hit_rate": 0.95, "disk_usage": "250MB"}
-  },
-  "rate_limiting": {
-    "total_requests": 15420,
-    "blocked_requests": 23,
-    "burst_requests": 156
-  }
-}
-```
-
-### Prometheus интеграция
-```bash
-# Экспорт метрик в формате Prometheus
-curl http://localhost:8000/metrics/prometheus
-
-# Пример метрик:
-# airtrace_requests_total{method="GET",endpoint="/weather/current"} 1542
-# airtrace_cache_hits_total{level="L1"} 1156
-# airtrace_response_time_seconds{quantile="0.95"} 8.5
-# airtrace_external_api_calls_total{service="open_meteo",status="success"} 892
-```
-
-## 📄 API Документация
-
-### Автоматическая документация
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **OpenAPI JSON**: http://localhost:8000/openapi.json
-
-## 📊 Статистика проекта
-
-- 📁 **25+ файлов** производительных компонентов
-- 🧪 **200+ тестов** с полным покрытием
-- 📖 **3000+ строк** документации
-- 🎨 **Современный веб-интерфейс**
-- 🔒 **Privacy-first архитектура**
-- 🇷🇺 **Российские стандарты ПДК**
-- ⚡ **Высокопроизводительная архитектура**
-- 📈 **Prometheus мониторинг**
-- 🛡️ **Enterprise-grade надежность**
-
-## 🚀 Производительность
-
-### Характеристики
-- **Пропускная способность**: 1000+ запросов/минуту
-- **Время отклика**: <2 секунды (с кэшем)
-- **Доступность**: 99.9% (с graceful degradation)
-- **Масштабируемость**: Горизонтальное масштабирование
-- **Кэширование**: 85%+ hit rate при нормальной нагрузке
-
-### Оптимизации
-- 🚀 **L1 кэш**: Мгновенный доступ к часто используемым данным
-- 🔄 **L2 кэш (Redis)**: Распределенное кэширование между инстансами
-- 💾 **L3 кэш**: Персистентное хранение для долгосрочного кэширования
-- 🛡️ **Rate Limiting**: Защита от перегрузок с burst handling
-- 🔗 **Connection Pooling**: Эффективное использование соединений
-- 📊 **Request Batching**: Группировка запросов для оптимизации
-- 🎯 **Smart Prefetching**: Предзагрузка данных на основе паттернов
-
-## 🆕 Последние обновления (v4)
-
-Коротко о том, какую работу команда уже проделала:
-
-### 🚀 Release Engineering & Operations (закрытый EPIC #25)
-- 🐳 Подготовлен production `docker-compose` профиль (`api/web/redis/db`) с healthchecks и restart policy.
-- 📘 Добавлена документация запуска и проверки production-окружения.
-- 🔧 Усилен CI: отдельные стадии `lint -> tests -> contract -> smoke`, таймауты и артефакты.
-- 🧯 Добавлены incident runbooks и проверенный rollback path для on-call.
-
-### 🌍 Ecosystem & Adoption (закрытый EPIC #29)
-- 📚 Обновлена публичная документация API v2 с актуальными `curl`-примерами и migration notes.
-- 🟨 Добавлен typed JS SDK starter с примером интеграции и версионированием.
-- 🐍 Добавлен Python SDK starter (pip-ready) с retry/error handling и примером использования.
-
-### 🩺 Health Model Upgrade (реализация пункта 2)
-- ✅ Улучшена логика `/health` и `/v2/health`: optional-компоненты теперь переводят сервис в `degraded`, а не в ложный `unhealthy`.
-- 🫀 Добавлены отдельные probes:
-  - `/health/liveness` и `/v2/liveness`
-  - `/health/readiness` и `/v2/readiness`
-- 🎯 `readiness` теперь честно показывает готовность к трафику: `degraded` считается `ready`, `unhealthy` — `not_ready`.
-
-## 📜 Лицензия
-
-MIT License - см. файл [LICENSE](LICENSE)
-
-## 🙏 Благодарности
-
-- **Open-Meteo** — за бесплатный API качества воздуха
-- **WeatherAPI** — за дополнительные метеорологические данные
-- **FastAPI** — за отличный веб-фреймворк
-- **Pydantic** — за валидацию данных
-- **Hypothesis** — за property-based тестирование
-- **Redis** — за высокопроизводительное кэширование
-- **Prometheus** — за систему мониторинга
-- **Tailwind CSS** — за utility-first стили
-
----
-
-**🌬️ Дышите чистым воздухом с AirTrace RU!**
-
-*Сделано с ❤️ для экологии России*
-
-## 📈 Changelog
-
-### v0.3.1 - Rate Limiting & Cache Invalidation Hardening (2026-02-24)
-- ✅ Закрыт umbrella issue `#33` (code review findings по rate limiting и cache invalidation).
-- ✅ `#36`: исправлен глобальный bypass rate limiting из-за `skip_paths=['/']` и substring matching.
-- ✅ `#37`: формализован и протестирован контракт `skip_paths` (exact / path-segment prefix, без substring bypass).
-- ✅ `#34`: `RateLimitManager` теперь управляет live middleware instance FastAPI (без дублирующего экземпляра).
-- ✅ `#35`: безопасное извлечение client IP для rate limiting (`safe-by-default`, trusted proxy allowlist через env).
-- ✅ `#38`: исправлена invalidation combined-cache по координатам через тот же keyspace, что `get/set`.
-- 🧪 Добавлены регрессионные тесты для path matching, spoofed proxy headers, live middleware binding и cache invalidation keyspace.
-
-### v2.0.0 - Performance Optimization Release (2026-01-22)
-- ⚡ **Многоуровневое кэширование** (L1/L2/L3)
-- 🛡️ **Интеллектуальное rate limiting** с burst handling
-- 🔄 **Оптимизированные пулы соединений** для внешних API
-- 📊 **Комплексный мониторинг производительности**
-- 🎯 **Оптимизация запросов** с батчингом и дедупликацией
-- 💾 **Управление ресурсами** и автоматическое масштабирование
-- 🔧 **Graceful degradation** для высокой доступности
-- 🌐 **WeatherAPI интеграция** для дополнительных данных о погоде
-- 🔒 **Усиленная защита приватности** с валидацией метрик
-- 📈 **Prometheus метрики** для enterprise мониторинга
-- 🧪 **200+ тестов** включая property-based testing
-- 📋 **Аудит конфигурации** с отслеживанием изменений
-
-#### Rate Limiting Behind Reverse Proxy (Security)
-- По умолчанию rate limiting использует `request.client.host` и не доверяет `X-Forwarded-For` / `X-Real-IP` (`safe-by-default`).
-- Для reverse-proxy deployment включите доверие явно:
-  - `PERFORMANCE_RATE_LIMIT_TRUST_FORWARDED_HEADERS=true`
-  - `PERFORMANCE_RATE_LIMIT_TRUSTED_PROXY_IPS=10.0.0.0/8,192.168.0.0/16` (список IP/CIDR доверенных прокси)
-- Не включайте `PERFORMANCE_RATE_LIMIT_TRUST_FORWARDED_HEADERS=true` без ограничения `PERFORMANCE_RATE_LIMIT_TRUSTED_PROXY_IPS`, если приложение доступно напрямую из сети.
-
-### v1.0.0 - Initial Release
-- 🇷🇺 Базовая функциональность с российскими стандартами ПДК
-- 🌐 Веб-интерфейс с современным дизайном
-- 🔒 Privacy-first архитектура
-- 📊 Экспорт данных в CSV/JSON
+Current work after Stage 5 is focused on API hardening:
+- clearer health semantics
+- stronger contract and edge-case tests
+- OpenAPI/runtime parity
+- continued cleanup of remaining legacy behavior
