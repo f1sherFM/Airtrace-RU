@@ -2,8 +2,10 @@
 Unit tests for Telegram delivery service (Issue 5.2).
 """
 
+import os
 from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 from telegram_delivery import TelegramDeliveryService
@@ -67,3 +69,27 @@ async def test_telegram_delivery_status_log_keeps_recent_events():
     assert len(recent) == 2
     assert recent[0]["event_id"] == first["event_id"]
     assert recent[1]["event_id"] == second["event_id"]
+
+
+def test_telegram_delivery_trust_env_defaults_to_true():
+    with patch.dict(os.environ, {}, clear=False):
+        service = TelegramDeliveryService(bot_token="token")
+    assert service.trust_env is True
+
+
+@pytest.mark.asyncio
+async def test_telegram_delivery_surfaces_timeout_error_name():
+    sink = _MemoryDeadLetter()
+    service = TelegramDeliveryService(
+        bot_token="token",
+        max_retries=0,
+        retry_delay_seconds=0.0,
+        dead_letter_sink=sink,
+    )
+
+    with patch("httpx.AsyncClient.post", side_effect=httpx.ConnectTimeout("timeout")):
+        result = await service.send_message(chat_id="123", text="hello", event_id="evt-timeout")
+
+    assert result["status"] == "failed"
+    assert result["error"] == "timeout"
+    assert sink.items[0]["error"] == "timeout"

@@ -4,11 +4,14 @@ Telegram delivery channel with retry and dead-letter handling (Issue 5.2).
 
 import asyncio
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class InMemoryDeliveryStatusStore:
@@ -43,18 +46,31 @@ class TelegramDeliveryService:
         *,
         max_retries: int = 3,
         retry_delay_seconds: float = 0.7,
+        trust_env: Optional[bool] = None,
         dead_letter_sink: Optional[JsonlDeadLetterSink] = None,
         status_store: Optional[InMemoryDeliveryStatusStore] = None,
     ):
         self.bot_token = bot_token
         self.max_retries = max_retries
         self.retry_delay_seconds = retry_delay_seconds
+        self.trust_env = (
+            trust_env
+            if trust_env is not None
+            else os.getenv("TELEGRAM_TRUST_ENV", "true").lower() == "true"
+        )
         self.dead_letter_sink = dead_letter_sink or JsonlDeadLetterSink("logs/telegram_dead_letter.jsonl")
         self.status_store = status_store or InMemoryDeliveryStatusStore()
 
     @property
     def enabled(self) -> bool:
         return bool(self.bot_token)
+
+    @staticmethod
+    def _format_error(exc: Exception) -> str:
+        message = str(exc).strip()
+        if message:
+            return message
+        return exc.__class__.__name__
 
     async def send_message(self, chat_id: str, text: str, event_id: Optional[str] = None) -> Dict[str, Any]:
         attempts = 0
@@ -71,7 +87,7 @@ class TelegramDeliveryService:
             return result
 
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-        async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
+        async with httpx.AsyncClient(timeout=15.0, trust_env=self.trust_env) as client:
             for i in range(self.max_retries + 1):
                 attempts += 1
                 try:
@@ -84,7 +100,15 @@ class TelegramDeliveryService:
                     self.status_store.add(result)
                     return result
                 except Exception as exc:
-                    last_error = str(exc)
+                    last_error = self._format_error(exc)
+                    logger.warning(
+                        "Telegram delivery attempt failed: attempt=%s/%s chat_id=%s event_id=%s error=%s",
+                        attempts,
+                        self.max_retries + 1,
+                        chat_id,
+                        event_id,
+                        last_error,
+                    )
                     if i < self.max_retries:
                         await asyncio.sleep(self.retry_delay_seconds)
                         continue
