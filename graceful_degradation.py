@@ -9,6 +9,7 @@ Implements comprehensive fallback mechanisms for system resilience including:
 """
 
 import asyncio
+import inspect
 import logging
 import time
 from dataclasses import dataclass, field
@@ -207,7 +208,10 @@ class GracefulDegradationManager:
                 
                 start_time = time.time()
                 try:
-                    is_healthy = await health_check_func() if asyncio.iscoroutinefunction(health_check_func) else health_check_func()
+                    result = await health_check_func() if asyncio.iscoroutinefunction(health_check_func) else health_check_func()
+                    if inspect.isawaitable(result):
+                        result = await result
+                    is_healthy = result
                     response_time = time.time() - start_time
                     
                     health = self.component_health[component_name]

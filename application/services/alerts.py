@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
@@ -28,6 +29,8 @@ from schemas import (
     AlertSubscriptionUpdate,
     DeliveryResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
@@ -476,6 +479,12 @@ class AlertSubscriptionService:
 
             severity = AlertRuleEngine._severity(aqi, normalized_nmu)
             if AlertRuleEngine._is_in_quiet_hours(now_utc, subscription.quiet_hours_start, subscription.quiet_hours_end):
+                logger.info(
+                    "Alert suppressed by quiet hours: subscription_id=%s name=%s reasons=%s",
+                    subscription.id,
+                    subscription.name,
+                    reasons,
+                )
                 events.append(
                     AlertEvent(
                         rule_id=subscription.id,
@@ -493,6 +502,13 @@ class AlertSubscriptionService:
                 else None
             )
             if cooldown_until is not None and now_utc < cooldown_until:
+                logger.info(
+                    "Alert suppressed by cooldown: subscription_id=%s name=%s cooldown_until=%s reasons=%s",
+                    subscription.id,
+                    subscription.name,
+                    cooldown_until.isoformat(),
+                    reasons,
+                )
                 events.append(
                     AlertEvent(
                         rule_id=subscription.id,
@@ -508,6 +524,15 @@ class AlertSubscriptionService:
                 subscription.id,
                 last_triggered_at=now_utc,
                 last_delivery_status=subscription.last_delivery_status,
+            )
+            logger.info(
+                "Alert triggered: subscription_id=%s name=%s aqi=%s nmu=%s severity=%s reasons=%s",
+                subscription.id,
+                subscription.name,
+                aqi,
+                normalized_nmu or "unknown",
+                severity,
+                reasons,
             )
             events.append(
                 AlertEvent(
@@ -555,6 +580,15 @@ class AlertSubscriptionService:
                 event_id=event_id,
             )
             delivery_result = DeliveryResult(**raw_result)
+            logger.info(
+                "Alert delivery result: subscription_id=%s chat_id=%s status=%s attempts=%s event_id=%s error=%s",
+                event.rule_id,
+                chat_id,
+                delivery_result.status,
+                delivery_result.attempts,
+                delivery_result.event_id,
+                delivery_result.error,
+            )
             await self._delivery_attempt_repository.record_attempt(
                 subscription_id=event.rule_id,
                 event_id=delivery_result.event_id,

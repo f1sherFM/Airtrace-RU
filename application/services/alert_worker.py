@@ -116,6 +116,12 @@ class AlertEvaluationWorker:
         failed_deliveries = 0
 
         for group in groups:
+            logger.info(
+                "Alert worker evaluating group: key=%s city_code=%s subscriptions=%s",
+                group.key,
+                group.city_code,
+                len(group.subscription_ids),
+            )
             try:
                 current = await self._fetch_current_data(group.latitude, group.longitude)
             except Exception as exc:
@@ -139,6 +145,12 @@ class AlertEvaluationWorker:
                     now=cycle_started_at,
                 )
                 unsuppressed = [event for event in events if not event.suppressed]
+                logger.info(
+                    "Alert worker evaluated group: key=%s total_events=%s unsuppressed=%s",
+                    group.key,
+                    len(events),
+                    len(unsuppressed),
+                )
                 if not unsuppressed:
                     continue
                 triggered_alerts += len(unsuppressed)
@@ -146,6 +158,12 @@ class AlertEvaluationWorker:
                     events=unsuppressed,
                     aqi=current.aqi.value,
                     nmu_risk=getattr(current, "nmu_risk", None),
+                )
+                logger.info(
+                    "Alert worker delivery summary: key=%s sent=%s failed=%s",
+                    group.key,
+                    sum(1 for result in delivery_results if result.status == "sent"),
+                    sum(1 for result in delivery_results if result.status != "sent"),
                 )
                 failed_deliveries += sum(1 for result in delivery_results if result.status != "sent")
             except Exception as exc:
@@ -175,4 +193,3 @@ class AlertEvaluationWorker:
         except asyncio.CancelledError:
             logger.info("Alert evaluation worker shutdown requested")
             return
-

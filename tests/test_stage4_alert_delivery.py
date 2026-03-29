@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+import logging
 
 import main
 from application.services.alerts import AlertSubscriptionService
@@ -93,6 +94,28 @@ async def test_stage4_delivery_service_persists_attempts_and_cooldown_state():
         assert telegram_service.sent[0]["chat_id"] == "777"
         assert suppressed[0].suppressed is True
         assert "cooldown" in suppressed[0].reasons
+
+
+@pytest.mark.asyncio
+async def test_stage4_delivery_service_emits_runtime_logs(caplog):
+    caplog.set_level(logging.INFO)
+    with _patched_alert_runtime() as (service, _delivery_repository, _telegram_service):
+        await service.create_legacy_rule(
+            AlertRuleCreate(name="AQI>=150", aqi_threshold=150, cooldown_minutes=30, chat_id="777")
+        )
+        events = await service.evaluate_conditions(
+            aqi=170,
+            nmu_risk="high",
+            lat=55.7558,
+            lon=37.6176,
+            now=datetime(2026, 3, 26, 12, 0, tzinfo=timezone.utc),
+        )
+        await service.deliver_events(events=events, aqi=170, nmu_risk="high")
+
+    messages = "\n".join(record.getMessage() for record in caplog.records)
+    assert "Alert triggered:" in messages
+    assert "Alert delivery result:" in messages
+    assert "status=sent" in messages
 
 
 @pytest.mark.asyncio

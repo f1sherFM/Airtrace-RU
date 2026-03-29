@@ -211,6 +211,37 @@ class TestMemoryGrowthLimitation:
         # Should never exceed limit
         assert len(manager.stale_data_cache) <= max_entries
 
+    @pytest.mark.asyncio
+    async def test_health_check_loop_awaits_awaitable_from_sync_wrapper(self):
+        """Test that health loop awaits coroutine results returned by sync wrappers."""
+        from graceful_degradation import GracefulDegradationManager
+
+        manager = GracefulDegradationManager()
+        state = {"calls": 0}
+
+        async def _async_health():
+            state["calls"] += 1
+            return True
+
+        def _sync_wrapper():
+            return _async_health()
+
+        task = asyncio.create_task(manager._health_check_loop("external_api", _sync_wrapper))
+        try:
+            manager.fallback_configs["external_api"].health_check_interval = 0
+            manager.component_health["external_api"] = manager.component_health.get("external_api") or __import__("graceful_degradation").ComponentHealth(
+                name="external_api",
+                status=__import__("graceful_degradation").ComponentStatus.UNKNOWN,
+                last_check=datetime.now(timezone.utc),
+            )
+            await asyncio.sleep(0.01)
+        finally:
+            task.cancel()
+            await task
+
+        assert state["calls"] > 0
+        assert manager.component_health["external_api"].status.value == "healthy"
+
 
 # Test Fix #5: Redis Timeout
 class TestRedisTimeout:
