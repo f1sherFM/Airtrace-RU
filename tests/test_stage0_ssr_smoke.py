@@ -72,7 +72,7 @@ async def test_stage0_ssr_city_page_renders_with_stubbed_backend():
             "metadata": {"confidence": 0.91},
         }
 
-    async def _fake_forecast(lat: float, lon: float):
+    async def _fake_forecast(lat: float, lon: float, hours: int = 24):
         return [{"aqi": {"value": 80}, "timestamp": "2026-03-25T13:00:00+00:00"}]
 
     async def _fake_history(**kwargs):
@@ -121,7 +121,7 @@ async def test_stage0_ssr_custom_submit_renders_with_stubbed_backend():
             "metadata": {"confidence": 0.95},
         }
 
-    async def _fake_forecast(lat: float, lon: float):
+    async def _fake_forecast(lat: float, lon: float, hours: int = 24):
         return [{"aqi": {"value": 70}, "timestamp": "2026-03-25T13:00:00+00:00"}]
 
     async def _fake_history(**kwargs):

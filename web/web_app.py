@@ -135,6 +135,10 @@ def _build_alert_payload(
     return payload
 
 
+def _normalize_forecast_hours(value: int) -> int:
+    return 48 if value == 48 else 24
+
+
 @app.get("/", response_class=UTF8HTMLResponse)
 async def index(request: Request):
     context = await build_index_context(request=request, service=air_service)
@@ -143,16 +147,18 @@ async def index(request: Request):
 
 
 @app.get("/city/{city_key}", response_class=UTF8HTMLResponse)
-async def city_data(request: Request, city_key: str):
+async def city_data(request: Request, city_key: str, forecast_hours: int = Query(24)):
     if city_key not in CITIES:
         raise HTTPException(status_code=404, detail="City not found")
     city = CITIES[city_key]
+    forecast_hours = _normalize_forecast_hours(forecast_hours)
     try:
         context = await build_city_page_context(
             request=request,
             service=air_service,
             city_key=city_key,
             city=city,
+            forecast_hours=forecast_hours,
         )
         context["aqi_class"] = get_aqi_class(context["data"]["aqi"]["value"])
         context["nmu_config"] = get_nmu_config(context["data"].get("nmu_risk", "low"))
@@ -166,7 +172,41 @@ async def city_data(request: Request, city_key: str):
 
 
 @app.get("/custom", response_class=UTF8HTMLResponse)
-async def custom_city_form(request: Request):
+async def custom_city_form(
+    request: Request,
+    lat: Optional[float] = Query(None, ge=-90, le=90),
+    lon: Optional[float] = Query(None, ge=-180, le=180),
+    city_name: str = Query(""),
+    forecast_hours: int = Query(24),
+):
+    if lat is not None or lon is not None:
+        if lat is None or lon is None:
+            raise HTTPException(status_code=400, detail="Latitude and longitude must be provided together")
+
+        custom_city = {
+            "name": city_name if city_name else f"Coordinates {lat:.2f}, {lon:.2f}",
+            "lat": lat,
+            "lon": lon,
+        }
+        try:
+            context = await build_city_page_context(
+                request=request,
+                service=air_service,
+                city_key="custom",
+                city=custom_city,
+                is_custom=True,
+                forecast_hours=_normalize_forecast_hours(forecast_hours),
+            )
+            context["aqi_class"] = get_aqi_class(context["data"]["aqi"]["value"])
+            context["nmu_config"] = get_nmu_config(context["data"].get("nmu_risk", "low"))
+            context["action_plan"] = get_action_plan(context["data"]["aqi"]["value"], context["data"].get("nmu_risk", "low"))
+            context["format_time"] = format_time
+            return templates.TemplateResponse(request, "city.html", context)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            return _render_city_error(request, custom_city, str(exc))
+
     health = await air_service.check_health()
     return templates.TemplateResponse(
         request,
@@ -205,6 +245,7 @@ async def custom_city_data(
             city_key="custom",
             city=custom_city,
             is_custom=True,
+            forecast_hours=24,
         )
         context["aqi_class"] = get_aqi_class(context["data"]["aqi"]["value"])
         context["nmu_config"] = get_nmu_config(context["data"].get("nmu_risk", "low"))

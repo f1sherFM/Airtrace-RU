@@ -105,21 +105,36 @@
         <div class="flex items-center justify-between mb-4">
             <h3 class="text-xl font-semibold">Прогноз</h3>
             <div class="flex gap-2">
-                <button type="button" class="btn-glass rounded-lg px-3 py-1 text-sm" aria-pressed="true">24h</button>
-                <button type="button" class="btn-glass rounded-lg px-3 py-1 text-sm" aria-pressed="false">48h</button>
+                {% if is_custom %}
+                <a href="/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}&forecast_hours=24#forecast-section" class="btn-glass rounded-lg px-3 py-1 text-sm {% if selected_forecast_hours == 24 %}ring-2 ring-white/35{% endif %}" aria-pressed="{{ 'true' if selected_forecast_hours == 24 else 'false' }}">24h</a>
+                <a href="/custom?lat={{ current_city.lat }}&lon={{ current_city.lon }}&city_name={{ current_city.name | urlencode }}&forecast_hours=48#forecast-section" class="btn-glass rounded-lg px-3 py-1 text-sm {% if selected_forecast_hours == 48 %}ring-2 ring-white/35{% endif %}" aria-pressed="{{ 'true' if selected_forecast_hours == 48 else 'false' }}">48h</a>
+                {% else %}
+                <a href="/city/{{ city_key }}?forecast_hours=24#forecast-section" class="btn-glass rounded-lg px-3 py-1 text-sm {% if selected_forecast_hours == 24 %}ring-2 ring-white/35{% endif %}" aria-pressed="{{ 'true' if selected_forecast_hours == 24 else 'false' }}">24h</a>
+                <a href="/city/{{ city_key }}?forecast_hours=48#forecast-section" class="btn-glass rounded-lg px-3 py-1 text-sm {% if selected_forecast_hours == 48 %}ring-2 ring-white/35{% endif %}" aria-pressed="{{ 'true' if selected_forecast_hours == 48 else 'false' }}">48h</a>
+                {% endif %}
             </div>
         </div>
-        {% if forecast %}
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {% for hour in forecast %}
-            <div class="panel rounded-2xl p-4">
-                <div class="flex items-center justify-between">
-                    <div class="text-sm opacity-75">{{ format_time(hour.timestamp) }}</div>
-                    <div class="text-lg font-semibold">{{ hour.aqi.value }}</div>
+        {% if forecast_groups %}
+        <div class="space-y-5">
+            {% for group in forecast_groups %}
+            <section class="space-y-3" data-testid="forecast-day-group">
+                <div class="flex items-center justify-between gap-3 panel rounded-2xl px-4 py-3 bg-white/6 border border-white/10">
+                    <div class="text-sm font-semibold tracking-wide">{{ group.day_label }}</div>
+                    <div class="text-xs opacity-70">{{ group.items | length }} ч.</div>
                 </div>
-                <div class="text-sm opacity-80 mt-2">{{ hour.aqi.category }}</div>
-                <div class="text-xs opacity-70 mt-2">PM2.5: {{ "%.1f"|format(hour.pollutants.pm2_5) if hour.pollutants.pm2_5 is not none else "--" }}</div>
-            </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {% for hour in group.entries %}
+                    <div class="panel rounded-2xl p-4">
+                        <div class="flex items-center justify-between">
+                            <div class="text-sm opacity-75">{{ format_time(hour.timestamp) }}</div>
+                            <div class="text-lg font-semibold">{{ hour.aqi.value }}</div>
+                        </div>
+                        <div class="text-sm opacity-80 mt-2">{{ hour.aqi.category }}</div>
+                        <div class="text-xs opacity-70 mt-2">PM2.5: {{ "%.1f"|format(hour.pollutants.pm2_5) if hour.pollutants.pm2_5 is not none else "--" }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
             {% endfor %}
         </div>
         {% else %}

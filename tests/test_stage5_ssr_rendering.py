@@ -116,6 +116,7 @@ async def test_stage5_city_page_renders_explainability_block():
     original_forecast = web_app.air_service.get_forecast_data
     original_history = web_app.air_service.get_history_data
     original_trends = web_app.air_service.get_trends_data
+    original_health = web_app.air_service.check_health
 
     async def _fake_current(lat: float, lon: float):
         return _current_payload(lat, lon)
@@ -129,10 +130,14 @@ async def test_stage5_city_page_renders_explainability_block():
     async def _fake_trends(**kwargs):
         return _trends_payload()
 
+    async def _fake_health():
+        return {"status": "healthy", "public_status": "healthy", "reachable": True}
+
     web_app.air_service.get_current_data = _fake_current
     web_app.air_service.get_forecast_data = _fake_forecast
     web_app.air_service.get_history_data = _fake_history
     web_app.air_service.get_trends_data = _fake_trends
+    web_app.air_service.check_health = _fake_health
     try:
         transport = httpx.ASGITransport(app=web_app.app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -142,6 +147,7 @@ async def test_stage5_city_page_renders_explainability_block():
         web_app.air_service.get_forecast_data = original_forecast
         web_app.air_service.get_history_data = original_history
         web_app.air_service.get_trends_data = original_trends
+        web_app.air_service.check_health = original_health
 
     assert response.status_code == 200
     html = response.text
