@@ -82,3 +82,27 @@ async def test_web_alerts_service_uses_backend_api_for_crud():
         ("PATCH", "/v2/alerts/sub-1", {"cooldown_minutes": 45}),
         ("DELETE", "/v2/alerts/sub-1", None),
     ]
+
+
+@pytest.mark.asyncio
+async def test_web_alerts_service_reads_api_key_lazily_from_environment(monkeypatch: pytest.MonkeyPatch):
+    seen_headers: list[str] = []
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        seen_headers.append(request.headers["X-API-Key"])
+        return httpx.Response(200, json=[])
+
+    monkeypatch.delenv("ALERTS_API_KEY", raising=False)
+    service = WebAppService(
+        alerts_api_base_url="http://testserver",
+        alerts_transport=httpx.MockTransport(_handler),
+    )
+    assert service._use_backend_alerts_api() is False
+
+    monkeypatch.setenv("ALERTS_API_KEY", "runtime-key")
+    assert service._use_backend_alerts_api() is True
+
+    rules = await service.list_alert_rules()
+
+    assert rules == []
+    assert seen_headers == ["runtime-key"]

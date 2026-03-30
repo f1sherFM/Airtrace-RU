@@ -65,19 +65,24 @@ class WebAppService:
         alerts_api_base_url: Optional[str] = None,
         alerts_api_key: Optional[str] = None,
         alerts_api_timeout_seconds: Optional[float] = None,
+        alerts_api_trust_env: Optional[bool] = None,
         alerts_transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        self._alerts_api_base_url = (
-            alerts_api_base_url
-            or os.getenv("API_BASE_URL")
-            or os.getenv("WEB_API_BASE_URL")
-            or "http://127.0.0.1:8000"
-        ).rstrip("/")
-        self._alerts_api_key = (alerts_api_key or os.getenv("ALERTS_API_KEY", "")).strip()
+        self._alerts_api_base_url_override = alerts_api_base_url
+        self._alerts_api_key_override = alerts_api_key
         timeout_raw = alerts_api_timeout_seconds
         if timeout_raw is None:
             timeout_raw = float(os.getenv("WEB_ALERTS_API_TIMEOUT_SECONDS", "10"))
         self._alerts_api_timeout_seconds = timeout_raw
+        trust_env_raw = alerts_api_trust_env
+        if trust_env_raw is None:
+            trust_env_raw = os.getenv("WEB_ALERTS_API_TRUST_ENV", "false").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+        self._alerts_api_trust_env = trust_env_raw
         self._alerts_transport = alerts_transport
         self._alerts_backend_enabled = os.getenv("WEB_ALERTS_USE_BACKEND_API", "true").strip().lower() not in {
             "0",
@@ -169,6 +174,19 @@ class WebAppService:
     def _use_backend_alerts_api(self) -> bool:
         return self._alerts_backend_enabled and bool(self._alerts_api_base_url) and bool(self._alerts_api_key)
 
+    @property
+    def _alerts_api_base_url(self) -> str:
+        return (
+            self._alerts_api_base_url_override
+            or os.getenv("API_BASE_URL")
+            or os.getenv("WEB_API_BASE_URL")
+            or "http://127.0.0.1:8000"
+        ).rstrip("/")
+
+    @property
+    def _alerts_api_key(self) -> str:
+        return (self._alerts_api_key_override or os.getenv("ALERTS_API_KEY", "")).strip()
+
     def _alerts_api_headers(self) -> dict[str, str]:
         return {"X-API-Key": self._alerts_api_key}
 
@@ -183,14 +201,17 @@ class WebAppService:
             base_url=self._alerts_api_base_url,
             timeout=self._alerts_api_timeout_seconds,
             transport=self._alerts_transport,
-            trust_env=True,
+            trust_env=self._alerts_api_trust_env,
         ) as client:
-            response = await client.request(
-                method,
-                path,
-                headers=self._alerts_api_headers(),
-                json=json_body,
-            )
+            try:
+                response = await client.request(
+                    method,
+                    path,
+                    headers=self._alerts_api_headers(),
+                    json=json_body,
+                )
+            except httpx.RequestError as exc:
+                raise HTTPException(status_code=503, detail=str(exc) or "Alert backend is unreachable") from exc
         if response.is_success:
             if response.status_code == 204 or not response.content:
                 return None
