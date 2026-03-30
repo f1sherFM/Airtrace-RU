@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+import httpx
 from fastapi import HTTPException
 
 from application.queries.health import query_health
@@ -57,6 +58,33 @@ def _resolve_history_delta(range_value: HistoryRange) -> timedelta:
 
 class WebAppService:
     """Application-layer adapter for SSR routes."""
+
+    def __init__(
+        self,
+        *,
+        alerts_api_base_url: Optional[str] = None,
+        alerts_api_key: Optional[str] = None,
+        alerts_api_timeout_seconds: Optional[float] = None,
+        alerts_transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self._alerts_api_base_url = (
+            alerts_api_base_url
+            or os.getenv("API_BASE_URL")
+            or os.getenv("WEB_API_BASE_URL")
+            or "http://127.0.0.1:8000"
+        ).rstrip("/")
+        self._alerts_api_key = (alerts_api_key or os.getenv("ALERTS_API_KEY", "")).strip()
+        timeout_raw = alerts_api_timeout_seconds
+        if timeout_raw is None:
+            timeout_raw = float(os.getenv("WEB_ALERTS_API_TIMEOUT_SECONDS", "10"))
+        self._alerts_api_timeout_seconds = timeout_raw
+        self._alerts_transport = alerts_transport
+        self._alerts_backend_enabled = os.getenv("WEB_ALERTS_USE_BACKEND_API", "true").strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
 
     async def get_current_data(self, lat: float, lon: float) -> dict[str, Any]:
         payload = await query_current_air_quality(lat=lat, lon=lon)
@@ -138,12 +166,56 @@ class WebAppService:
             )
         return _fallback_alert_service
 
+    def _use_backend_alerts_api(self) -> bool:
+        return self._alerts_backend_enabled and bool(self._alerts_api_base_url) and bool(self._alerts_api_key)
+
+    def _alerts_api_headers(self) -> dict[str, str]:
+        return {"X-API-Key": self._alerts_api_key}
+
+    async def _request_alerts_api(
+        self,
+        method: str,
+        path: str,
+        *,
+        json_body: Optional[dict[str, Any]] = None,
+    ) -> Any:
+        async with httpx.AsyncClient(
+            base_url=self._alerts_api_base_url,
+            timeout=self._alerts_api_timeout_seconds,
+            transport=self._alerts_transport,
+            trust_env=True,
+        ) as client:
+            response = await client.request(
+                method,
+                path,
+                headers=self._alerts_api_headers(),
+                json=json_body,
+            )
+        if response.is_success:
+            if response.status_code == 204 or not response.content:
+                return None
+            return response.json()
+
+        message = response.text
+        try:
+            payload = response.json()
+            message = payload.get("message") or payload.get("detail") or message
+        except ValueError:
+            payload = None
+        raise HTTPException(status_code=response.status_code, detail=message or "Alert backend request failed")
+
     async def list_alert_rules(self) -> list[dict[str, Any]]:
+        if self._use_backend_alerts_api():
+            payload = await self._request_alerts_api("GET", "/v2/alerts")
+            return list(payload or [])
         service = self._get_or_create_alert_service()
         payload = await service.list_subscriptions()
         return [item.model_dump(mode="json") for item in payload]
 
     async def create_alert_rule(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if self._use_backend_alerts_api():
+            created = await self._request_alerts_api("POST", "/v2/alerts", json_body=payload)
+            return dict(created)
         service = self._get_or_create_alert_service()
         if payload.get("city") or payload.get("lat") is not None or payload.get("lon") is not None:
             created = await service.create_subscription(AlertSubscriptionCreate(**payload))
@@ -152,6 +224,9 @@ class WebAppService:
         return created.model_dump(mode="json")
 
     async def update_alert_rule(self, rule_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        if self._use_backend_alerts_api():
+            updated = await self._request_alerts_api("PATCH", f"/v2/alerts/{rule_id}", json_body=payload)
+            return dict(updated)
         service = self._get_or_create_alert_service()
         if payload.get("city") or payload.get("lat") is not None or payload.get("lon") is not None:
             updated = await service.update_subscription(rule_id, AlertSubscriptionUpdate(**payload))
@@ -162,6 +237,9 @@ class WebAppService:
         return updated.model_dump(mode="json")
 
     async def delete_alert_rule(self, rule_id: str) -> dict[str, Any]:
+        if self._use_backend_alerts_api():
+            deleted = await self._request_alerts_api("DELETE", f"/v2/alerts/{rule_id}")
+            return dict(deleted or {"deleted": True, "id": rule_id})
         service = self._get_or_create_alert_service()
         deleted = await service.delete_subscription(rule_id)
         if not deleted:
