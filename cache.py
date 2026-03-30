@@ -32,7 +32,7 @@ except ImportError:
 
 from config import config
 from schemas import CacheEntry
-from privacy_compliance_validator import validate_cache_key_privacy, validate_metrics_privacy
+from core.privacy_validation import validate_cache_key_privacy, validate_metrics_privacy
 
 logger = logging.getLogger(__name__)
 

@@ -22,7 +22,7 @@ class TestCoordinateValidator:
     
     def test_valid_coordinates(self):
         """Test valid coordinates"""
-        from validators import CoordinateValidator
+        from core.validation import CoordinateValidator
         
         is_valid, error = CoordinateValidator.validate(55.7558, 37.6176)
         assert is_valid
@@ -30,7 +30,7 @@ class TestCoordinateValidator:
     
     def test_invalid_latitude_too_high(self):
         """Test latitude above 90"""
-        from validators import CoordinateValidator
+        from core.validation import CoordinateValidator
         
         is_valid, error = CoordinateValidator.validate(100, 37.6176)
         assert not is_valid
@@ -39,7 +39,7 @@ class TestCoordinateValidator:
     
     def test_invalid_latitude_too_low(self):
         """Test latitude below -90"""
-        from validators import CoordinateValidator
+        from core.validation import CoordinateValidator
         
         is_valid, error = CoordinateValidator.validate(-100, 37.6176)
         assert not is_valid
@@ -47,7 +47,7 @@ class TestCoordinateValidator:
     
     def test_invalid_longitude(self):
         """Test invalid longitude"""
-        from validators import CoordinateValidator
+        from core.validation import CoordinateValidator
         
         is_valid, error = CoordinateValidator.validate(55.7558, 200)
         assert not is_valid
@@ -55,21 +55,21 @@ class TestCoordinateValidator:
     
     def test_russian_territory_moscow(self):
         """Test Moscow coordinates (should be valid)"""
-        from validators import CoordinateValidator
+        from core.validation import CoordinateValidator
         
         is_valid, error = CoordinateValidator.validate_russian_territory(55.7558, 37.6176)
         assert is_valid
     
     def test_russian_territory_vladivostok(self):
         """Test Vladivostok coordinates (should be valid)"""
-        from validators import CoordinateValidator
+        from core.validation import CoordinateValidator
         
         is_valid, error = CoordinateValidator.validate_russian_territory(43.1056, 131.8735)
         assert is_valid
     
     def test_russian_territory_outside(self):
         """Test coordinates outside Russia (New York)"""
-        from validators import CoordinateValidator
+        from core.validation import CoordinateValidator
         
         is_valid, error = CoordinateValidator.validate_russian_territory(40.7128, -74.0060)
         assert not is_valid
@@ -77,14 +77,14 @@ class TestCoordinateValidator:
     
     def test_validate_or_raise_valid(self):
         """Test validate_or_raise with valid coordinates"""
-        from validators import CoordinateValidator
+        from core.validation import CoordinateValidator
         
         # Should not raise
         CoordinateValidator.validate_or_raise(55.7558, 37.6176)
     
     def test_validate_or_raise_invalid(self):
         """Test validate_or_raise with invalid coordinates"""
-        from validators import CoordinateValidator, ValidationError
+        from core.validation import CoordinateValidator, ValidationError
         
         with pytest.raises(ValidationError):
             CoordinateValidator.validate_or_raise(100, 37.6176)
@@ -95,7 +95,7 @@ class TestPollutantValidator:
     
     def test_valid_pollutants(self):
         """Test valid pollutant values"""
-        from validators import PollutantValidator
+        from core.validation import PollutantValidator
         
         pollutants = {"pm2_5": 25.0, "pm10": 50.0, "no2": 30.0}
         is_valid, error = PollutantValidator.validate_dict(pollutants)
@@ -104,7 +104,7 @@ class TestPollutantValidator:
     
     def test_negative_value(self):
         """Test negative pollutant value"""
-        from validators import PollutantValidator
+        from core.validation import PollutantValidator
         
         pollutants = {"pm2_5": -10.0}
         is_valid, error = PollutantValidator.validate_dict(pollutants)
@@ -113,7 +113,7 @@ class TestPollutantValidator:
     
     def test_excessive_value(self):
         """Test excessively high pollutant value"""
-        from validators import PollutantValidator
+        from core.validation import PollutantValidator
         
         pollutants = {"pm2_5": 10000.0}  # Way too high
         is_valid, error = PollutantValidator.validate_dict(pollutants)
@@ -122,7 +122,7 @@ class TestPollutantValidator:
     
     def test_none_value_allowed(self):
         """Test that None values are allowed (missing data)"""
-        from validators import PollutantValidator
+        from core.validation import PollutantValidator
         
         pollutants = {"pm2_5": 25.0, "pm10": None}
         is_valid, error = PollutantValidator.validate_dict(pollutants)
@@ -130,7 +130,7 @@ class TestPollutantValidator:
     
     def test_empty_dict(self):
         """Test empty pollutants dictionary"""
-        from validators import PollutantValidator
+        from core.validation import PollutantValidator
         
         pollutants = {}
         is_valid, error = PollutantValidator.validate_dict(pollutants)
@@ -139,7 +139,7 @@ class TestPollutantValidator:
     
     def test_validate_or_raise(self):
         """Test validate_or_raise"""
-        from validators import PollutantValidator, ValidationError
+        from core.validation import PollutantValidator, ValidationError
         
         # Valid - should not raise
         pollutants = {"pm2_5": 25.0}
@@ -155,7 +155,7 @@ class TestAPIResponseValidator:
     
     def test_valid_open_meteo_response(self):
         """Test valid Open-Meteo response"""
-        from validators import APIResponseValidator
+        from core.validation import APIResponseValidator
         
         response = {
             "latitude": 55.7558,
@@ -167,7 +167,7 @@ class TestAPIResponseValidator:
     
     def test_missing_latitude(self):
         """Test response missing latitude"""
-        from validators import APIResponseValidator
+        from core.validation import APIResponseValidator
         
         response = {"longitude": 37.6176}
         is_valid, error = APIResponseValidator.validate_open_meteo_response(response)
@@ -176,7 +176,7 @@ class TestAPIResponseValidator:
     
     def test_invalid_coordinate_type(self):
         """Test response with invalid coordinate type"""
-        from validators import APIResponseValidator
+        from core.validation import APIResponseValidator
         
         response = {"latitude": "invalid", "longitude": 37.6176}
         is_valid, error = APIResponseValidator.validate_open_meteo_response(response)
@@ -563,7 +563,7 @@ class TestMediumPriorityIntegration:
     
     def test_validators_integration(self):
         """Test that validators work together"""
-        from validators import CoordinateValidator, PollutantValidator
+        from core.validation import CoordinateValidator, PollutantValidator
         
         # Valid coordinates and pollutants
         lat, lon = 55.7558, 37.6176
@@ -577,7 +577,7 @@ class TestMediumPriorityIntegration:
     
     def test_masking_with_validation(self):
         """Test coordinate masking with validation"""
-        from validators import CoordinateValidator
+        from core.validation import CoordinateValidator
         from services import mask_coordinates
         
         lat, lon = 55.7558, 37.6176

@@ -9,7 +9,7 @@ from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 
 from config import config
-from privacy_compliance_validator import privacy_validator
+from core.privacy_validation import privacy_validator
 from rate_limit_middleware import get_rate_limit_manager
 from rate_limit_monitoring import get_rate_limit_monitor
 from unified_weather_service import unified_weather_service

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
 
-from alert_rule_engine import AlertRuleEngine
+from application.services.alert_rule_engine import AlertRuleEngine
 from application.repositories.alerts import (
     AlertAuditRepository,
     AlertDeliveryAttemptRepository,

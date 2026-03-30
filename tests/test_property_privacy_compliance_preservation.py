@@ -17,7 +17,7 @@ from unittest.mock import patch, MagicMock
 from typing import Dict, Any
 
 from main import app
-from privacy_compliance_validator import (
+from core.privacy_validation import (
     PrivacyComplianceValidator, 
     PrivacyViolationType,
     validate_cache_key_privacy,

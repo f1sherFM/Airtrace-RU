@@ -1,7 +1,7 @@
 import pytest
 
 from cache import CacheLevel, MultiLevelCacheManager
-from privacy_compliance_validator import validate_cache_key_privacy
+from core.privacy_validation import validate_cache_key_privacy
 from unified_weather_service import UnifiedWeatherService
 
 

@@ -23,7 +23,7 @@ from services import AirQualityService
 from weather_api_manager import weather_api_manager
 from cache import MultiLevelCacheManager, CacheLevel
 from config import config
-from privacy_compliance_validator import validate_metrics_privacy
+from core.privacy_validation import validate_metrics_privacy
 
 logger = logging.getLogger(__name__)
 

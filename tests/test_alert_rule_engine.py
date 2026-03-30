@@ -4,7 +4,7 @@ Unit tests for alert rule engine (Issue 5.1).
 
 from datetime import datetime, timezone, timedelta
 
-from alert_rule_engine import AlertRuleEngine
+from application.services.alert_rule_engine import AlertRuleEngine
 from schemas import AlertRuleCreate
 import pytest
 

@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from anomaly_detection import HourlyAnomalyDetector
+from application.services.anomaly_detection import HourlyAnomalyDetector
 from application.repositories.history import HistoryRepository, LocationRepository, LocationRecord
 from config import config
 from schemas import AirQualityData, DataSource, HistoricalSnapshotRecord, HistorySortOrder, PollutantData, ResponseMetadata

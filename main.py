@@ -13,7 +13,7 @@ from core.env import load_repo_env
 
 load_repo_env(root_dir=Path(__file__).resolve().parent)
 
-from alert_rule_engine import AlertRuleEngine
+from application.services.alert_rule_engine import AlertRuleEngine
 from application.queries.health import (
     _derive_overall_health_status,
     _is_optional_health_component,

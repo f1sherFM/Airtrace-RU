@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Any, Deque
 from threading import Lock
 import statistics
 
-from privacy_compliance_validator import validate_metrics_privacy, validate_log_privacy
+from core.privacy_validation import validate_metrics_privacy, validate_log_privacy
 
 logger = logging.getLogger(__name__)
 

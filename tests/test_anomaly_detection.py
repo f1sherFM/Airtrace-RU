@@ -2,7 +2,7 @@
 Unit tests for hourly anomaly detection (Issue 2.3).
 """
 
-from anomaly_detection import HourlyAnomalyDetector
+from application.services.anomaly_detection import HourlyAnomalyDetector
 
 
 def test_detects_spike_against_baseline():

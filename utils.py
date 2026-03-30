@@ -12,7 +12,7 @@ from domain.nmu.detector import (
     is_blacksky_conditions,
 )
 from domain.pollutants.aggregator import get_pollutant_name_russian
-from validators import CoordinateValidator
+from core.validation import CoordinateValidator
 
 
 def format_russian_timestamp(timestamp: datetime) -> str:

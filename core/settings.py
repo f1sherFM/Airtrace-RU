@@ -9,7 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from validators import CoordinateValidator
+from core.validation import CoordinateValidator
 
 try:
     import yaml
