@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
 import uvicorn
+
+from core.env import load_repo_env
+
+load_repo_env(root_dir=Path(__file__).resolve().parent)
 
 from alert_rule_engine import AlertRuleEngine
 from application.queries.health import (

@@ -13,6 +13,10 @@ import signal
 import os
 from pathlib import Path
 
+from core.env import load_repo_env
+
+load_repo_env(root_dir=Path(__file__).resolve().parent)
+
 
 # Устанавливаем правильную кодировку для Windows
 if sys.platform == 'win32':

@@ -31,6 +31,10 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
+from core.env import load_repo_env  # noqa: E402
+
+load_repo_env(root_dir=ROOT_DIR)
+
 from application.web import (  # noqa: E402
     WebAppService,
     build_alerts_page_context,
