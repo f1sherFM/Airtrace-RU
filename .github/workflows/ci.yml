@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile Python sources
+        run: |
+          python -m compileall main.py start_app.py api application core domain infrastructure web
+
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: [compile]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run focused regression pack
+        run: |
+          mkdir -p artifacts
+          python -m pytest \
+            tests/test_stage0_api_baseline.py \
+            tests/test_stage0_ssr_smoke.py \
+            tests/test_stage3_public_openapi.py \
+            tests/test_stage4_v2_alerts_api.py \
+            tests/test_stage5_alerts_ui.py \
+            tests/test_sentry_bootstrap.py \
+            tests/test_production_compose_assets.py \
+            --junitxml=artifacts/ci-junit.xml
+
+      - name: Upload CI test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-junit-report
+          path: artifacts/ci-junit.xml
+          if-no-files-found: error
