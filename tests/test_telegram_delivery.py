@@ -3,6 +3,7 @@ Unit tests for Telegram delivery service (Issue 5.2).
 """
 
 import os
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -93,3 +94,40 @@ async def test_telegram_delivery_surfaces_timeout_error_name():
     assert result["status"] == "failed"
     assert result["error"] == "timeout"
     assert sink.items[0]["error"] == "timeout"
+
+
+@pytest.mark.asyncio
+async def test_telegram_delivery_uses_external_client_factory():
+    captured: dict[str, object] = {}
+
+    class _RespOk:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"ok": True}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def post(self, url, json=None):
+            captured["url"] = url
+            captured["payload"] = json
+            return _RespOk()
+
+    def _factory(**kwargs):
+        captured["factory_kwargs"] = kwargs
+        return _Client()
+
+    service = TelegramDeliveryService(bot_token="token", trust_env=True)
+    with patch("telegram_delivery.create_external_async_client", side_effect=_factory):
+        result = await service.send_message(chat_id="123", text="hello", event_id="evt-factory")
+
+    assert result["status"] == "sent"
+    assert captured["factory_kwargs"]["timeout_seconds"] == 15.0
+    assert captured["factory_kwargs"]["trust_env"] is True
+    assert captured["payload"] == {"chat_id": "123", "text": "hello"}

@@ -22,6 +22,7 @@ from core.legacy_runtime import (
     get_history_snapshot_store,
     get_telegram_delivery_service,
 )
+from http_transport import create_internal_async_client
 from infrastructure.repositories import (
     InMemoryAlertAuditRepository,
     InMemoryAlertDeliveryAttemptRepository,
@@ -197,11 +198,13 @@ class WebAppService:
         *,
         json_body: Optional[dict[str, Any]] = None,
     ) -> Any:
-        async with httpx.AsyncClient(
+        async with create_internal_async_client(
             base_url=self._alerts_api_base_url,
-            timeout=self._alerts_api_timeout_seconds,
+            timeout_seconds=self._alerts_api_timeout_seconds,
             transport=self._alerts_transport,
             trust_env=self._alerts_api_trust_env,
+            max_connections=10,
+            max_keepalive_connections=5,
         ) as client:
             try:
                 response = await client.request(

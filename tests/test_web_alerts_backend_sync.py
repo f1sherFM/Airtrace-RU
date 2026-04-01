@@ -1,4 +1,6 @@
 import json
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -106,3 +108,43 @@ async def test_web_alerts_service_reads_api_key_lazily_from_environment(monkeypa
 
     assert rules == []
     assert seen_headers == ["runtime-key"]
+
+
+@pytest.mark.asyncio
+async def test_web_alerts_service_builds_internal_http_client():
+    captured: dict[str, object] = {}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def request(self, method, path, headers=None, json=None):
+            captured["method"] = method
+            captured["path"] = path
+            captured["headers"] = headers
+            captured["json"] = json
+            return SimpleNamespace(is_success=True, status_code=200, content=b"[]", json=lambda: [])
+
+    def _factory(**kwargs):
+        captured["factory_kwargs"] = kwargs
+        return _Client()
+
+    service = WebAppService(
+        alerts_api_base_url="http://testserver",
+        alerts_api_key="test-alert-key",
+        alerts_api_timeout_seconds=8.0,
+        alerts_api_trust_env=False,
+    )
+
+    with patch("application.web.service.create_internal_async_client", side_effect=_factory):
+        rules = await service.list_alert_rules()
+
+    assert rules == []
+    assert captured["factory_kwargs"]["base_url"] == "http://testserver"
+    assert captured["factory_kwargs"]["timeout_seconds"] == 8.0
+    assert captured["factory_kwargs"]["trust_env"] is False
+    assert captured["method"] == "GET"
+    assert captured["path"] == "/v2/alerts"

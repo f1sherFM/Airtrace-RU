@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from http_transport import create_external_async_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -87,7 +89,12 @@ class TelegramDeliveryService:
             return result
 
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-        async with httpx.AsyncClient(timeout=15.0, trust_env=self.trust_env) as client:
+        async with create_external_async_client(
+            timeout_seconds=15.0,
+            trust_env=self.trust_env,
+            max_connections=10,
+            max_keepalive_connections=5,
+        ) as client:
             for i in range(self.max_retries + 1):
                 attempts += 1
                 try:

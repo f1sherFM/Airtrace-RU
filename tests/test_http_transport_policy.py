@@ -4,7 +4,12 @@ Tests for unified HTTP transport policy (Issue #22).
 
 import asyncio
 
-from http_transport import create_async_client, get_transport_policy
+from http_transport import (
+    create_async_client,
+    create_external_async_client,
+    create_internal_async_client,
+    get_transport_policy,
+)
 from config import config
 
 
@@ -47,3 +52,33 @@ def test_transport_client_can_opt_in_trust_env(monkeypatch):
             asyncio.run(client.aclose())
     finally:
         config.api.trust_env = previous
+
+
+def test_internal_transport_defaults_to_trust_env_false(monkeypatch):
+    monkeypatch.setenv("INTERNAL_HTTP_TRUST_ENV", "false")
+    client = create_internal_async_client()
+    try:
+        assert getattr(client, "_trust_env", True) is False
+    finally:
+        asyncio.run(client.aclose())
+
+
+def test_external_transport_can_enable_trust_env(monkeypatch):
+    monkeypatch.setenv("EXTERNAL_HTTP_TRUST_ENV", "true")
+    client = create_external_async_client()
+    try:
+        assert getattr(client, "_trust_env", False) is True
+    finally:
+        asyncio.run(client.aclose())
+
+
+def test_internal_transport_timeout_seconds_sets_all_timeouts():
+    client = create_internal_async_client(timeout_seconds=7.5)
+    try:
+        timeout = client.timeout
+        assert timeout.connect == 7.5
+        assert timeout.read == 7.5
+        assert timeout.write == 7.5
+        assert timeout.pool == 7.5
+    finally:
+        asyncio.run(client.aclose())
