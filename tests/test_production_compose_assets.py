@@ -71,6 +71,12 @@ def test_vps_runbook_contains_clone_env_and_compose_steps():
 
 
 def test_web_app_uses_environment_api_base_url():
-    content = Path("application/web/service.py").read_text(encoding="utf-8")
-    assert 'os.getenv("API_BASE_URL")' in content
-    assert '"http://127.0.0.1:8000"' in content
+    service_content = Path("application/web/service.py").read_text(encoding="utf-8")
+    app_js_content = Path("web/app.js").read_text(encoding="utf-8")
+    server_content = Path("web/server.py").read_text(encoding="utf-8")
+
+    assert 'os.getenv("API_BASE_URL", "").strip()' in service_content
+    assert '"http://127.0.0.1:8000"' not in service_content
+    assert "window.AIRTRACE_API_BASE_URL" in app_js_content
+    assert "http://127.0.0.1:8000" not in app_js_content
+    assert '_resolve_api_base_url()' in server_content

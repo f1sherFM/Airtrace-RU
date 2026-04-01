@@ -3,7 +3,7 @@
 
 class AirTraceApp {
     constructor() {
-        this.apiBase = 'http://127.0.0.1:8000';
+        this.apiBase = (window.AIRTRACE_API_BASE_URL || '').replace(/\/$/, '');
         this.currentCoords = null;
         this.currentCity = null;
         this.refreshInterval = null;

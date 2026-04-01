@@ -111,6 +111,42 @@ async def test_web_alerts_service_reads_api_key_lazily_from_environment(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_web_alerts_service_reads_api_base_url_lazily_from_environment(monkeypatch: pytest.MonkeyPatch):
+    captured: dict[str, object] = {}
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return None
+
+        async def request(self, method, path, headers=None, json=None):
+            captured["method"] = method
+            captured["path"] = path
+            return SimpleNamespace(is_success=True, status_code=200, content=b"[]", json=lambda: [])
+
+    def _factory(**kwargs):
+        captured["factory_kwargs"] = kwargs
+        return _Client()
+
+    monkeypatch.delenv("API_BASE_URL", raising=False)
+    monkeypatch.delenv("WEB_API_BASE_URL", raising=False)
+    service = WebAppService(alerts_api_key="test-alert-key")
+    assert service._use_backend_alerts_api() is False
+
+    monkeypatch.setenv("API_BASE_URL", "https://api.example.com")
+    assert service._use_backend_alerts_api() is True
+
+    with patch("application.web.service.create_internal_async_client", side_effect=_factory):
+        rules = await service.list_alert_rules()
+
+    assert rules == []
+    assert captured["factory_kwargs"]["base_url"] == "https://api.example.com"
+    assert captured["path"] == "/v2/alerts"
+
+
+@pytest.mark.asyncio
 async def test_web_alerts_service_builds_internal_http_client():
     captured: dict[str, object] = {}
 

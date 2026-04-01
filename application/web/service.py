@@ -179,9 +179,8 @@ class WebAppService:
     def _alerts_api_base_url(self) -> str:
         return (
             self._alerts_api_base_url_override
-            or os.getenv("API_BASE_URL")
-            or os.getenv("WEB_API_BASE_URL")
-            or "http://127.0.0.1:8000"
+            or os.getenv("API_BASE_URL", "").strip()
+            or os.getenv("WEB_API_BASE_URL", "").strip()
         ).rstrip("/")
 
     @property
