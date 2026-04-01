@@ -28,6 +28,7 @@ def test_production_compose_doc_contains_startup_commands():
     assert "--profile with-db" in content
     assert "curl -fsS http://localhost:8000/health" in content
     assert "SENTRY_DSN" in content
+    assert "docs/vps_deployment_runbook.md" in content
 
 
 def test_production_env_example_contains_sentry_and_alerts_vars():
@@ -38,6 +39,35 @@ def test_production_env_example_contains_sentry_and_alerts_vars():
     assert "SENTRY_RELEASE=airtrace-v2" in content
     assert "ALERTS_API_KEY=" in content
     assert "TELEGRAM_BOT_TOKEN=" in content
+
+
+def test_dockerfile_api_exists_with_runtime_prerequisites():
+    content = Path("Dockerfile.api").read_text(encoding="utf-8")
+
+    assert "FROM python:3.13-slim" in content
+    assert "apt-get install -y --no-install-recommends curl" in content
+    assert "COPY requirements.txt /app/requirements.txt" in content
+    assert "pip install -r /app/requirements.txt" in content
+    assert "COPY . /app" in content
+    assert 'CMD ["uvicorn", "main:app"' in content
+
+
+def test_dockerignore_excludes_local_runtime_state():
+    content = Path(".dockerignore").read_text(encoding="utf-8")
+
+    assert ".venv" in content
+    assert ".env" in content
+    assert "airtrace_local.db" in content
+    assert "logs" in content
+
+
+def test_vps_runbook_contains_clone_env_and_compose_steps():
+    content = Path("docs/vps_deployment_runbook.md").read_text(encoding="utf-8")
+
+    assert "git clone" in content
+    assert "cp .env.production.example .env.production" in content
+    assert "docker compose --env-file .env.production -f docker-compose.prod.yml --profile with-db up -d --build" in content
+    assert "curl -fsS http://localhost:8000/health" in content
 
 
 def test_web_app_uses_environment_api_base_url():

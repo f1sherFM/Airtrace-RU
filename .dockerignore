@@ -1,0 +1,17 @@
+.git
+.github
+.venv
+.pytest_cache
+.hypothesis
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.db
+airtrace_local.db
+logs
+reports
+.env
+node_modules
+dist
+build

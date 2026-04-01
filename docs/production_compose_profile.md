@@ -50,3 +50,9 @@ To remove volumes too:
 ```bash
 docker compose -f docker-compose.prod.yml down -v
 ```
+
+## Related docs
+
+- `docs/vps_deployment_runbook.md`
+- `.env.production.example`
+- `Dockerfile.api`
