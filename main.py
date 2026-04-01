@@ -12,6 +12,9 @@ import uvicorn
 from core.env import load_repo_env
 
 load_repo_env(root_dir=Path(__file__).resolve().parent)
+from core.sentry import init_sentry
+
+init_sentry(app_role="api")
 
 from application.services.alert_rule_engine import AlertRuleEngine
 from application.queries.health import (

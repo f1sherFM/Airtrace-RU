@@ -17,6 +17,14 @@ All services use `restart: unless-stopped` and have healthchecks.
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+Set production env first. At minimum:
+
+- `SENTRY_DSN`
+- `SENTRY_ENVIRONMENT`
+- `SENTRY_RELEASE`
+- `ALERTS_API_KEY`
+- `TELEGRAM_BOT_TOKEN`
+
 ## Start with DB profile
 
 ```bash

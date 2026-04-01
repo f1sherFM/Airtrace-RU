@@ -34,6 +34,9 @@ if str(ROOT_DIR) not in sys.path:
 from core.env import load_repo_env  # noqa: E402
 
 load_repo_env(root_dir=ROOT_DIR)
+from core.sentry import init_sentry  # noqa: E402
+
+init_sentry(app_role="web")
 
 from application.web import (  # noqa: E402
     WebAppService,
