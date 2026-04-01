@@ -19,7 +19,7 @@ import statistics
 import httpx
 
 from config import config
-from http_transport import create_async_client
+from http_transport import create_external_async_client
 
 logger = logging.getLogger(__name__)
 
@@ -318,15 +318,7 @@ class ConnectionPool:
         self.config = config
         
         # HTTP client with connection pooling
-        self.client = create_async_client(
-            max_connections=config.max_connections,
-            max_keepalive_connections=config.max_keepalive_connections,
-            connect_timeout=config.connect_timeout,
-            read_timeout=config.read_timeout,
-            write_timeout=config.write_timeout,
-            pool_timeout=config.pool_timeout,
-            trust_env=config.trust_env,
-        )
+        self.client = self._create_http_client()
         
         # Pool state
         self.status = ConnectionStatus.HEALTHY
@@ -364,6 +356,17 @@ class ConnectionPool:
         
         # Request semaphore for connection limiting
         self.request_semaphore = asyncio.Semaphore(self.max_concurrent_requests)
+
+    def _create_http_client(self):
+        return create_external_async_client(
+            max_connections=self.config.max_connections,
+            max_keepalive_connections=self.config.max_keepalive_connections,
+            connect_timeout=self.config.connect_timeout,
+            read_timeout=self.config.read_timeout,
+            write_timeout=self.config.write_timeout,
+            pool_timeout=self.config.pool_timeout,
+            trust_env=self.config.trust_env,
+        )
     
     def _start_background_tasks(self):
         """Start background tasks for health checks and queue processing"""
@@ -706,15 +709,7 @@ class ConnectionPool:
             await self.client.aclose()
             
             # Create new client
-            self.client = create_async_client(
-                max_connections=self.config.max_connections,
-                max_keepalive_connections=self.config.max_keepalive_connections,
-                connect_timeout=self.config.connect_timeout,
-                read_timeout=self.config.read_timeout,
-                write_timeout=self.config.write_timeout,
-                pool_timeout=self.config.pool_timeout,
-                trust_env=self.config.trust_env,
-            )
+            self.client = self._create_http_client()
             
             self.connection_created_time = time.time()
             self.status = ConnectionStatus.HEALTHY

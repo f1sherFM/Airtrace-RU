@@ -3,6 +3,7 @@ Tests for unified HTTP transport policy (Issue #22).
 """
 
 import asyncio
+from unittest.mock import patch
 
 from http_transport import (
     create_async_client,
@@ -80,5 +81,17 @@ def test_internal_transport_timeout_seconds_sets_all_timeouts():
         assert timeout.read == 7.5
         assert timeout.write == 7.5
         assert timeout.pool == 7.5
+    finally:
+        asyncio.run(client.aclose())
+
+
+def test_external_transport_timeout_seconds_sets_all_timeouts():
+    client = create_external_async_client(timeout_seconds=12.0)
+    try:
+        timeout = client.timeout
+        assert timeout.connect == 12.0
+        assert timeout.read == 12.0
+        assert timeout.write == 12.0
+        assert timeout.pool == 12.0
     finally:
         asyncio.run(client.aclose())

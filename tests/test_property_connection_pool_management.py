@@ -56,7 +56,7 @@ class TestConnectionPoolProperties:
         )
         
         # Create pool with mock HTTP client to avoid actual network calls
-        with patch('connection_pool.AsyncClient') as mock_client:
+        with patch('connection_pool.create_external_async_client') as mock_client:
             # Mock the client instance methods
             mock_client_instance = AsyncMock()
             mock_client_instance.get = AsyncMock()
@@ -107,7 +107,7 @@ class TestConnectionPoolProperties:
         should execute them consistently and maintain accurate metrics.
         """
         # Mock successful responses at the transport level
-        with patch('connection_pool.AsyncClient') as mock_client:
+        with patch('connection_pool.create_external_async_client') as mock_client:
             mock_response = AsyncMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {"test": "data"}
@@ -231,7 +231,7 @@ class TestConnectionPoolProperties:
         """
         manager = ConnectionPoolManager()
         
-        with patch('connection_pool.AsyncClient') as mock_client:
+        with patch('connection_pool.create_external_async_client') as mock_client:
             # Mock the client instance methods
             mock_client_instance = AsyncMock()
             mock_client_instance.aclose = AsyncMock()
@@ -281,7 +281,7 @@ class TestConnectionPoolProperties:
             max_retries=0  # No retries to speed up tests
         )
         
-        with patch('connection_pool.AsyncClient') as mock_client_class:
+        with patch('connection_pool.create_external_async_client') as mock_client_class:
             # Create a proper mock response
             mock_response = AsyncMock()
             mock_response.status_code = 200
@@ -347,7 +347,7 @@ class TestConnectionPoolProperties:
             connection_max_age=max_age
         )
         
-        with patch('connection_pool.AsyncClient') as mock_client:
+        with patch('connection_pool.create_external_async_client') as mock_client:
             # Mock successful health check response
             mock_response = AsyncMock()
             mock_response.status_code = 200
@@ -411,7 +411,7 @@ class TestConnectionPoolIntegration:
             max_retries=0  # No retries to speed up tests
         )
         
-        with patch('connection_pool.AsyncClient') as mock_client_class:
+        with patch('connection_pool.create_external_async_client') as mock_client_class:
             # Configure mock for successful responses
             mock_response = AsyncMock()
             mock_response.status_code = 200

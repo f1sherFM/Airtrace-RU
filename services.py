@@ -35,7 +35,7 @@ from connection_pool import get_connection_pool_manager, ServiceType, APIRequest
 from weather_api_manager import weather_api_manager
 from config import config
 from confidence_scoring import ConfidenceInputs, calculate_confidence
-from http_transport import create_async_client
+from http_transport import create_external_async_client
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ class AirQualityService:
         # Use connection pool manager instead of direct httpx client
         self.use_connection_pool = config.performance.connection_pooling_enabled
         # Keep a direct client for graceful fallback when pool is saturated.
-        self.client = create_async_client(
+        self.client = create_external_async_client(
             max_connections=10,
             max_keepalive_connections=5,
             read_timeout=30.0,

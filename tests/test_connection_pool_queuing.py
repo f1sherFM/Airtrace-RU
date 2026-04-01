@@ -8,6 +8,7 @@ circuit breaker patterns, and comprehensive metrics collection.
 import asyncio
 import pytest
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from connection_pool import (
@@ -96,11 +97,29 @@ class TestConnectionPoolQueuing:
         client.request.return_value = response
         client.get.return_value = response
         return client
-    
+
+    def test_connection_pool_builds_external_http_client(self, pool_config):
+        captured = {}
+        mock_client = AsyncMock()
+
+        def _factory(**kwargs):
+            captured.update(kwargs)
+            return mock_client
+
+        with patch("connection_pool.create_external_async_client", side_effect=_factory):
+            pool = ConnectionPool(ServiceType.OPEN_METEO, "https://test.api", pool_config)
+
+        assert pool.client is mock_client
+        assert captured["max_connections"] == pool_config.max_connections
+        assert captured["max_keepalive_connections"] == pool_config.max_keepalive_connections
+        assert captured["connect_timeout"] == pool_config.connect_timeout
+        assert captured["read_timeout"] == pool_config.read_timeout
+        assert captured["trust_env"] == pool_config.trust_env
+
     @pytest.mark.asyncio
     async def test_request_queuing_when_pool_exhausted(self, pool_config, mock_client):
         """Test that requests are queued when connection pool is exhausted"""
-        with patch('connection_pool.AsyncClient', return_value=mock_client):
+        with patch('connection_pool.create_external_async_client', return_value=mock_client):
             pool = ConnectionPool(ServiceType.OPEN_METEO, "https://test.api", pool_config)
             
             # Create multiple concurrent requests that exceed pool capacity
@@ -145,7 +164,7 @@ class TestConnectionPoolQueuing:
         
         mock_client.request.side_effect = slow_request
         
-        with patch('connection_pool.AsyncClient', return_value=mock_client):
+        with patch('connection_pool.create_external_async_client', return_value=mock_client):
             pool = ConnectionPool(ServiceType.OPEN_METEO, "https://test.api", pool_config)
             
             # Create requests that will cause queuing
@@ -183,7 +202,7 @@ class TestConnectionPoolQueuing:
         
         mock_client.request.side_effect = slow_request
         
-        with patch('connection_pool.AsyncClient', return_value=mock_client):
+        with patch('connection_pool.create_external_async_client', return_value=mock_client):
             pool = ConnectionPool(ServiceType.OPEN_METEO, "https://test.api", pool_config)
             
             # Create more requests than queue can handle
@@ -215,7 +234,7 @@ class TestConnectionPoolMetrics:
     @pytest.mark.asyncio
     async def test_comprehensive_metrics_collection(self, pool_config):
         """Test that all metrics are properly collected"""
-        with patch('connection_pool.AsyncClient') as mock_client_class:
+        with patch('connection_pool.create_external_async_client') as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             
@@ -257,7 +276,7 @@ class TestConnectionPoolMetrics:
     @pytest.mark.asyncio
     async def test_wait_time_metrics(self, pool_config):
         """Test wait time metrics collection"""
-        with patch('connection_pool.AsyncClient') as mock_client_class:
+        with patch('connection_pool.create_external_async_client') as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             
@@ -300,7 +319,7 @@ class TestConnectionPoolIntegration:
         """Test that open circuit breaker prevents request queuing"""
         config = PoolConfig(max_connections=1, queue_timeout=0.5, max_retries=0)  # No retries to fail faster
         
-        with patch('connection_pool.AsyncClient') as mock_client_class:
+        with patch('connection_pool.create_external_async_client') as mock_client_class:
             mock_client = AsyncMock()
             mock_client_class.return_value = mock_client
             
